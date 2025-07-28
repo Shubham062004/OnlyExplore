@@ -18,8 +18,6 @@ import {
   User,
   Wallet,
   Wand2,
-  LogOut,
-  Chrome,
 } from 'lucide-react';
 
 import { generateTravelItinerary } from '@/ai/flows/generate-travel-itinerary';
@@ -33,7 +31,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { useAuth } from '@/context/AuthContext';
 
 // Define the shape of the itinerary data we expect from the AI
 const ItineraryDaySchema = z.object({
@@ -110,7 +107,6 @@ export default function OnlyExplore() {
   const [lastEditRequest, setLastEditRequest] = useState<string | null>(null);
 
   const { toast } = useToast();
-  const { user, signOut, signInWithGoogle } = useAuth();
 
   const plannerForm = useForm<z.infer<typeof plannerFormSchema>>({
     resolver: zodResolver(plannerFormSchema),
@@ -160,10 +156,6 @@ export default function OnlyExplore() {
   }
 
   async function onPlannerSubmit(values: z.infer<typeof plannerFormSchema>) {
-    if (!user) {
-        toast({ title: 'Please log in to create an itinerary.' });
-        return;
-    }
     setIsLoading(true);
     setItinerary(null);
     setRawItinerary(null);
@@ -311,16 +303,6 @@ export default function OnlyExplore() {
             </div>
             <TooltipProvider>
               <div className="flex items-center gap-2">
-                 {user && (
-                  <Tooltip>
-                      <TooltipTrigger asChild>
-                           <Button variant="ghost" size="icon" onClick={signOut}>
-                              <LogOut className="h-5 w-5 text-muted-foreground" />
-                           </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p>Log Out</p></TooltipContent>
-                  </Tooltip>
-                 )}
                 <Tooltip>
                     <TooltipTrigger asChild>
                       <Button variant="ghost" size="icon" onClick={handleShare}>
@@ -375,7 +357,6 @@ export default function OnlyExplore() {
                         <p className="text-primary-foreground">{lastEditRequest}</p>
                     </div>
                       <Avatar>
-                         {user?.photoURL ? <AvatarImage src={user.photoURL} alt={user.displayName || 'User'} /> : null}
                         <AvatarFallback className="bg-secondary">
                             <User className="h-6 w-6" />
                         </AvatarFallback>
@@ -410,13 +391,13 @@ export default function OnlyExplore() {
                     <FormControl>
                       <div className="relative">
                         <Wand2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                        <Input placeholder="Need a change? Tell me what to edit..." className="pl-10" {...field} disabled={!user}/>
+                        <Input placeholder="Need a change? Tell me what to edit..." className="pl-10" {...field} />
                       </div>
                     </FormControl>
                   </FormItem>
                 )}
               />
-              <Button type="submit" size="icon" disabled={isEditing || !user}>
+              <Button type="submit" size="icon" disabled={isEditing}>
                 <SendHorizonal className="h-5 w-5" />
               </Button>
             </form>
@@ -436,7 +417,6 @@ export default function OnlyExplore() {
         <CardDescription>Your AI-powered travel planner. Let's dream up your next adventure together.</CardDescription>
       </CardHeader>
       <CardContent>
-        {user ? (
             <Form {...plannerForm}>
             <form onSubmit={plannerForm.handleSubmit(onPlannerSubmit)} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -511,14 +491,6 @@ export default function OnlyExplore() {
                 </Button>
             </form>
             </Form>
-        ) : (
-            <div className="text-center">
-                <p className="mb-4 text-muted-foreground">Please log in to start planning your travels.</p>
-                <Button onClick={signInWithGoogle} size="lg">
-                    <Chrome className="mr-2 h-5 w-5" /> Sign in with Google
-                </Button>
-            </div>
-        )}
       </CardContent>
     </Card>
   );
