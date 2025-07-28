@@ -191,9 +191,10 @@ export default function OnlyExplore() {
   }
   
   const handleCopyToClipboard = async () => {
-      if (!rawItinerary) return;
+      if (!itinerary) return;
       try {
-        await navigator.clipboard.writeText(rawItinerary);
+        const itineraryText = JSON.stringify(itinerary, null, 2);
+        await navigator.clipboard.writeText(itineraryText);
         toast({ title: 'Itinerary copied to clipboard!' });
       } catch (err) {
         toast({
@@ -205,14 +206,16 @@ export default function OnlyExplore() {
   };
 
   const handleShare = async () => {
-    if (!rawItinerary) return;
+    if (!itinerary) return;
 
+    const itineraryText = `Check out my trip to ${itinerary.destination}! Here is the plan:\n\n${JSON.stringify(itinerary, null, 2)}`;
+    
     const shareData = {
-      title: `My Travel Itinerary for ${currentDestination}`,
-      text: `Check out my trip to ${currentDestination}! Here is the plan:\n\n${rawItinerary}`,
+      title: `My Travel Itinerary for ${itinerary.destination}`,
+      text: itineraryText,
     };
 
-    if (navigator.canShare && navigator.canShare(shareData) && navigator.share) {
+    if (navigator.share) {
         try {
             await navigator.share(shareData);
             toast({ title: 'Itinerary shared successfully!' });
@@ -229,14 +232,15 @@ export default function OnlyExplore() {
 
 
   const handleDownloadPdf = async () => {
-    if (!rawItinerary) return;
+    if (!itinerary) return;
     try {
       const { default: jsPDF } = await import('jspdf');
       const doc = new jsPDF();
-      doc.text(`Your Trip to ${currentDestination}`, 10, 10);
-      const textLines = doc.splitTextToSize(rawItinerary, 180);
+      doc.text(`Your Trip to ${itinerary.destination}`, 10, 10);
+      const itineraryText = JSON.stringify(itinerary, null, 2);
+      const textLines = doc.splitTextToSize(itineraryText, 180);
       doc.text(textLines, 10, 20);
-      doc.save(`OnlyExplore-Itinerary-${currentDestination.replace(/\s/g, '_')}.pdf`);
+      doc.save(`OnlyExplore-Itinerary-${itinerary.destination.replace(/\s/g, '_')}.pdf`);
       toast({ title: 'PDF Downloaded!', description: 'Your itinerary has been saved.' });
     } catch(e) {
         console.error('Error downloading PDF', e);
@@ -280,7 +284,7 @@ export default function OnlyExplore() {
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
-              <CardTitle className="font-headline text-3xl text-foreground">Your Trip to {currentDestination}</CardTitle>
+              <CardTitle className="font-headline text-3xl text-foreground">Your Trip to {itinerary.destination}</CardTitle>
               <CardDescription>Here is your personalized AI-generated travel plan. Have fun!</CardDescription>
             </div>
             <TooltipProvider>
