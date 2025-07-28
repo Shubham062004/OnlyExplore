@@ -30,6 +30,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { ScrollArea } from './ui/scroll-area';
 
 const plannerFormSchema = z.object({
   destination: z.string().min(3, 'Please enter a destination.'),
@@ -44,6 +45,17 @@ const editFormSchema = z.object({
 
 // Helper to render formatted text from AI
 const renderFormattedText = (text: string) => {
+    // Check if the text is JSON
+    try {
+        const parsed = JSON.parse(text);
+        if (typeof parsed === 'object' && parsed !== null) {
+            // It's a JSON object, pretty-print it for debugging or simple display
+            return <pre className="text-sm bg-muted p-2 rounded-md whitespace-pre-wrap">{JSON.stringify(parsed, null, 2)}</pre>
+        }
+    } catch (e) {
+        // Not a JSON object, so we process it as regular text
+    }
+
     return text.split('\n').map((line, index) => {
       const trimmedLine = line.trim();
       if (trimmedLine.startsWith('###')) {
@@ -126,7 +138,7 @@ export default function OnlyExplore() {
     setIsEditing(true);
     setLastEditRequest(values.editRequest);
     try {
-      const result = await editItinerary({ itinerary, editRequest: values.editRequest });
+      const result = await editItinerary({ itinerary, ...values });
       setItinerary(result.updatedItinerary);
       editForm.reset();
     } catch (error) {
@@ -142,34 +154,41 @@ export default function OnlyExplore() {
   }
 
   const handleShare = async () => {
-    if (navigator.share && itinerary) {
-      try {
-        await navigator.share({
-          title: `My Travel Itinerary for ${currentDestination}`,
-          text: `Check out my trip to ${currentDestination}! Here is the plan:\n\n${itinerary}`,
-        });
-        toast({ title: 'Itinerary shared successfully!' });
-      } catch (error) {
-        console.error('Error sharing itinerary:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Could not share itinerary.',
-          description: 'Your browser may not support this feature or an error occurred.',
-        });
-      }
+    if (!itinerary) return;
+
+    const shareData = {
+      title: `My Travel Itinerary for ${currentDestination}`,
+      text: `Check out my trip to ${currentDestination}! Here is the plan:\n\n${itinerary}`,
+    };
+
+    if (navigator.canShare && navigator.canShare(shareData) && navigator.share) {
+        try {
+            await navigator.share(shareData);
+            toast({ title: 'Itinerary shared successfully!' });
+        } catch (error) {
+            console.error('Error sharing itinerary:', error);
+            // Fallback to clipboard if sharing fails
+            handleCopyToClipboard();
+        }
     } else {
+        handleCopyToClipboard();
+    }
+  };
+
+  const handleCopyToClipboard = async () => {
+      if (!itinerary) return;
       try {
         await navigator.clipboard.writeText(itinerary);
         toast({ title: 'Itinerary copied to clipboard!' });
       } catch (err) {
         toast({
           variant: 'destructive',
-          title: 'Share not supported.',
-          description: 'Your browser does not support the Web Share API. We also could not copy to clipboard.',
+          title: 'Could not copy itinerary.',
+          description: 'Your browser may not support this feature or an error occurred.',
         });
       }
-    }
   };
+
 
   const handleDownloadPdf = async () => {
     if (!itinerary) return;
@@ -227,7 +246,7 @@ export default function OnlyExplore() {
     });
 
     return (
-      <Card className="w-full max-w-4xl shadow-2xl shadow-primary/10">
+      <Card className="w-full max-w-4xl shadow-2xl shadow-primary/10 flex flex-col max-h-[90vh]">
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
@@ -264,54 +283,56 @@ export default function OnlyExplore() {
             </TooltipProvider>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-            <div className="flex items-start gap-4">
-                <Avatar className="border-2 border-accent">
-                    <AvatarFallback className="bg-accent text-accent-foreground">
-                        <Bot className="h-6 w-6" />
-                    </AvatarFallback>
-                </Avatar>
-                <div className="bg-muted rounded-lg p-4 w-full">
-                    <Accordion type="single" collapsible className="w-full" defaultValue="item-0">
-                    {itineraryDays.map((day, index) => (
-                        <AccordionItem value={`item-${index}`} key={index}>
-                        <AccordionTrigger className="font-headline text-lg hover:no-underline text-foreground">{day.title}</AccordionTrigger>
-                        <AccordionContent className="pt-2 text-base">
-                            <ul>{renderFormattedText(day.content)}</ul>
-                        </AccordionContent>
-                        </AccordionItem>
-                    ))}
-                    </Accordion>
-                </div>
-            </div>
-            {lastEditRequest && (
-                <div className="flex items-start gap-4 justify-end">
-                    <div className="bg-primary/20 rounded-lg p-4 max-w-[80%]">
-                        <p className="text-primary-foreground">{lastEditRequest}</p>
-                    </div>
-                     <Avatar>
-                        <AvatarFallback className="bg-secondary">
-                            <User className="h-6 w-6" />
-                        </AvatarFallback>
-                    </Avatar>
-                </div>
-            )}
-            {isEditing && (
-                <div className="flex items-center gap-4">
-                     <Avatar className="border-2 border-accent">
+        <ScrollArea className="flex-grow custom-scrollbar">
+            <CardContent className="space-y-4">
+                <div className="flex items-start gap-4">
+                    <Avatar className="border-2 border-accent">
                         <AvatarFallback className="bg-accent text-accent-foreground">
                             <Bot className="h-6 w-6" />
                         </AvatarFallback>
                     </Avatar>
-                    <div className="flex items-center space-x-2 bg-muted p-3 rounded-lg">
-                        <Skeleton className="h-4 w-4 rounded-full bg-accent" />
-                        <Skeleton className="h-4 w-4 rounded-full bg-accent" />
-                        <Skeleton className="h-4 w-4 rounded-full bg-accent" />
-                        <p className="text-sm text-muted-foreground">Rethinking your adventure...</p>
+                    <div className="bg-muted rounded-lg p-4 w-full">
+                        <Accordion type="single" collapsible className="w-full" defaultValue="item-0">
+                        {itineraryDays.map((day, index) => (
+                            <AccordionItem value={`item-${index}`} key={index}>
+                            <AccordionTrigger className="font-headline text-lg hover:no-underline text-foreground">{day.title}</AccordionTrigger>
+                            <AccordionContent className="pt-2 text-base">
+                                <ul>{renderFormattedText(day.content)}</ul>
+                            </AccordionContent>
+                            </AccordionItem>
+                        ))}
+                        </Accordion>
                     </div>
                 </div>
-            )}
-        </CardContent>
+                {lastEditRequest && (
+                    <div className="flex items-start gap-4 justify-end">
+                        <div className="bg-primary/20 rounded-lg p-4 max-w-[80%]">
+                            <p className="text-primary-foreground">{lastEditRequest}</p>
+                        </div>
+                         <Avatar>
+                            <AvatarFallback className="bg-secondary">
+                                <User className="h-6 w-6" />
+                            </AvatarFallback>
+                        </Avatar>
+                    </div>
+                )}
+                {isEditing && (
+                    <div className="flex items-center gap-4">
+                         <Avatar className="border-2 border-accent">
+                            <AvatarFallback className="bg-accent text-accent-foreground">
+                                <Bot className="h-6 w-6" />
+                            </AvatarFallback>
+                        </Avatar>
+                        <div className="flex items-center space-x-2 bg-muted p-3 rounded-lg">
+                            <Skeleton className="h-4 w-4 rounded-full bg-accent" />
+                            <Skeleton className="h-4 w-4 rounded-full bg-accent" />
+                            <Skeleton className="h-4 w-4 rounded-full bg-accent" />
+                            <p className="text-sm text-muted-foreground">Rethinking your adventure...</p>
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+        </ScrollArea>
         <CardFooter>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="w-full flex items-center gap-2">
