@@ -33,10 +33,10 @@ const prompt = ai.definePrompt({
   output: {schema: GenerateTravelItineraryOutputSchema},
   prompt: `You are a travel expert. Generate a personalized travel itinerary based on the following user preferences:
 
-Destination: {{{destination}}}
-Duration: {{{duration}}}
-Budget: {{{budget}}}
-Interests: {{{interests}}}
+Destination: {{destination}}
+Duration: {{duration}}
+Budget: {{budget}}
+Interests: {{interests}}
 
 Create a detailed itinerary including specific places to visit, activities to do, and estimated costs. Provide suggestions for hotels and restaurants.
 `,
