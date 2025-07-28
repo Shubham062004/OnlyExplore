@@ -18,7 +18,6 @@ import {
   Wallet,
   Wand2,
 } from 'lucide-react';
-import jsPDF from 'jspdf';
 
 import { generateTravelItinerary } from '@/ai/flows/generate-travel-itinerary';
 import { editItinerary } from '@/ai/flows/edit-travel-itinerary';
@@ -159,17 +158,23 @@ export default function WanderChat() {
         });
       }
     } else {
-      toast({
-        variant: 'destructive',
-        title: 'Share not supported.',
-        description: 'Your browser does not support the Web Share API.',
-      });
+      try {
+        await navigator.clipboard.writeText(itinerary);
+        toast({ title: 'Itinerary copied to clipboard!' });
+      } catch (err) {
+        toast({
+          variant: 'destructive',
+          title: 'Share not supported.',
+          description: 'Your browser does not support the Web Share API. We also could not copy to clipboard.',
+        });
+      }
     }
   };
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!itinerary) return;
     try {
+      const { default: jsPDF } = await import('jspdf');
       const doc = new jsPDF();
       doc.text(`Your Trip to ${currentDestination}`, 10, 10);
       const textLines = doc.splitTextToSize(itinerary, 180); // 180 is the max width
