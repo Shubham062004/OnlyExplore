@@ -7,13 +7,13 @@ import {getAuth} from 'firebase/auth';
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: 'TODO: Your api key',
-  authDomain: 'TODO: Your auth domain',
-  projectId: 'TODO: Your project id',
-  storageBucket: 'TODO: Your storage bucket',
-  messagingSenderId: 'TODO: Your messaging sender id',
-  appId: 'TODO: Your app id',
-  measurementId: 'TODO: Your measurement id',
+  apiKey: 'AIzaSyCcNK7pWwyRIBmi8wzjSnnhLCGe5M7sMBM',
+  authDomain: 'wanderchat-bssh4.firebaseapp.com',
+  projectId: 'wanderchat-bssh4',
+  storageBucket: 'wanderchat-bssh4.firebasestorage.app',
+  messagingSenderId: '406504659096',
+  appId: '1:406504659096:web:8154baf84926fc055558ed',
+  measurementId: '',
 };
 
 // Initialize Firebase
