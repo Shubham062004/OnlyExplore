@@ -138,7 +138,7 @@ export default function OnlyExplore() {
     setIsEditing(true);
     setLastEditRequest(values.editRequest);
     try {
-      const result = await editItinerary({ itinerary, ...values });
+      const result = await editItinerary({ itinerary, editRequest: values.editRequest });
       setItinerary(result.updatedItinerary);
       editForm.reset();
     } catch (error) {
@@ -246,7 +246,7 @@ export default function OnlyExplore() {
     });
 
     return (
-      <Card className="w-full max-w-4xl shadow-2xl shadow-primary/10 flex flex-col max-h-[90vh]">
+      <Card className="w-full max-w-4xl shadow-2xl shadow-primary/10 flex flex-col h-[90vh]">
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
@@ -283,56 +283,56 @@ export default function OnlyExplore() {
             </TooltipProvider>
           </div>
         </CardHeader>
-        <ScrollArea className="flex-grow custom-scrollbar">
-            <CardContent className="space-y-4">
-                <div className="flex items-start gap-4">
-                    <Avatar className="border-2 border-accent">
+        <CardContent className="flex-grow overflow-y-auto custom-scrollbar p-6 pt-0">
+          <div className="space-y-4">
+            <div className="flex items-start gap-4">
+                <Avatar className="border-2 border-accent">
+                    <AvatarFallback className="bg-accent text-accent-foreground">
+                        <Bot className="h-6 w-6" />
+                    </AvatarFallback>
+                </Avatar>
+                <div className="bg-muted rounded-lg p-4 w-full">
+                    <Accordion type="single" collapsible className="w-full" defaultValue="item-0">
+                    {itineraryDays.map((day, index) => (
+                        <AccordionItem value={`item-${index}`} key={index}>
+                        <AccordionTrigger className="font-headline text-lg hover:no-underline text-foreground">{day.title}</AccordionTrigger>
+                        <AccordionContent className="pt-2 text-base">
+                            <ul>{renderFormattedText(day.content)}</ul>
+                        </AccordionContent>
+                        </AccordionItem>
+                    ))}
+                    </Accordion>
+                </div>
+            </div>
+            {lastEditRequest && (
+                <div className="flex items-start gap-4 justify-end">
+                    <div className="bg-primary/20 rounded-lg p-4 max-w-[80%]">
+                        <p className="text-primary-foreground">{lastEditRequest}</p>
+                    </div>
+                      <Avatar>
+                        <AvatarFallback className="bg-secondary">
+                            <User className="h-6 w-6" />
+                        </AvatarFallback>
+                    </Avatar>
+                </div>
+            )}
+            {isEditing && (
+                <div className="flex items-center gap-4">
+                      <Avatar className="border-2 border-accent">
                         <AvatarFallback className="bg-accent text-accent-foreground">
                             <Bot className="h-6 w-6" />
                         </AvatarFallback>
                     </Avatar>
-                    <div className="bg-muted rounded-lg p-4 w-full">
-                        <Accordion type="single" collapsible className="w-full" defaultValue="item-0">
-                        {itineraryDays.map((day, index) => (
-                            <AccordionItem value={`item-${index}`} key={index}>
-                            <AccordionTrigger className="font-headline text-lg hover:no-underline text-foreground">{day.title}</AccordionTrigger>
-                            <AccordionContent className="pt-2 text-base">
-                                <ul>{renderFormattedText(day.content)}</ul>
-                            </AccordionContent>
-                            </AccordionItem>
-                        ))}
-                        </Accordion>
+                    <div className="flex items-center space-x-2 bg-muted p-3 rounded-lg">
+                        <Skeleton className="h-4 w-4 rounded-full bg-accent" />
+                        <Skeleton className="h-4 w-4 rounded-full bg-accent" />
+                        <Skeleton className="h-4 w-4 rounded-full bg-accent" />
+                        <p className="text-sm text-muted-foreground">Rethinking your adventure...</p>
                     </div>
                 </div>
-                {lastEditRequest && (
-                    <div className="flex items-start gap-4 justify-end">
-                        <div className="bg-primary/20 rounded-lg p-4 max-w-[80%]">
-                            <p className="text-primary-foreground">{lastEditRequest}</p>
-                        </div>
-                         <Avatar>
-                            <AvatarFallback className="bg-secondary">
-                                <User className="h-6 w-6" />
-                            </AvatarFallback>
-                        </Avatar>
-                    </div>
-                )}
-                {isEditing && (
-                    <div className="flex items-center gap-4">
-                         <Avatar className="border-2 border-accent">
-                            <AvatarFallback className="bg-accent text-accent-foreground">
-                                <Bot className="h-6 w-6" />
-                            </AvatarFallback>
-                        </Avatar>
-                        <div className="flex items-center space-x-2 bg-muted p-3 rounded-lg">
-                            <Skeleton className="h-4 w-4 rounded-full bg-accent" />
-                            <Skeleton className="h-4 w-4 rounded-full bg-accent" />
-                            <Skeleton className="h-4 w-4 rounded-full bg-accent" />
-                            <p className="text-sm text-muted-foreground">Rethinking your adventure...</p>
-                        </div>
-                    </div>
-                )}
-            </CardContent>
-        </ScrollArea>
+            )}
+          </div>
+        </CardContent>
         <CardFooter>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="w-full flex items-center gap-2">
