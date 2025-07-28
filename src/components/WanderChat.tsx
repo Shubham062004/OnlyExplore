@@ -8,6 +8,7 @@ import {
   Bot,
   CalendarDays,
   CalendarPlus,
+  Copy,
   Download,
   MapPin,
   Plane,
@@ -27,10 +28,28 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { ScrollArea } from './ui/scroll-area';
+
+// Define the shape of the itinerary data we expect from the AI
+const ItineraryDaySchema = z.object({
+  day: z.number(),
+  activities: z.array(z.string()),
+  cost: z.number().optional(),
+});
+type ItineraryDay = z.infer<typeof ItineraryDaySchema>;
+
+const ItinerarySchema = z.object({
+  destination: z.string(),
+  duration: z.number(),
+  budget: z.number(),
+  interests: z.string(),
+  days: z.array(ItineraryDaySchema),
+  totalCost: z.number().optional(),
+  notes: z.string().optional(),
+});
+type Itinerary = z.infer<typeof ItinerarySchema>;
 
 const plannerFormSchema = z.object({
   destination: z.string().min(3, 'Please enter a destination.'),
@@ -43,55 +62,45 @@ const editFormSchema = z.object({
   editRequest: z.string().min(5, 'Please enter a more detailed request.'),
 });
 
-// Helper to render formatted text from AI
-const renderFormattedText = (text: string) => {
-    // Check if the text is JSON
-    try {
-        const parsed = JSON.parse(text);
-        if (typeof parsed === 'object' && parsed !== null) {
-            // It's a JSON object, pretty-print it for debugging or simple display
-            return <pre className="text-sm bg-muted p-2 rounded-md whitespace-pre-wrap">{JSON.stringify(parsed, null, 2)}</pre>
-        }
-    } catch (e) {
-        // Not a JSON object, so we process it as regular text
-    }
-
-    return text.split('\n').map((line, index) => {
-      const trimmedLine = line.trim();
-      if (trimmedLine.startsWith('###')) {
-        return (
-          <h3 key={index} className="text-xl font-headline font-bold mt-6 mb-3 text-foreground">
-            {trimmedLine.replace('###', '').trim()}
-          </h3>
-        );
-      }
-      if (trimmedLine.startsWith('**') && trimmedLine.endsWith('**')) {
-        return (
-          <p key={index} className="font-bold text-card-foreground my-2">
-            {trimmedLine.substring(2, trimmedLine.length - 2)}
-          </p>
-        );
-      }
-      if (trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ')) {
-        return (
-          <li key={index} className="ml-6 list-disc text-muted-foreground marker:text-accent">
-            {trimmedLine.substring(2)}
-          </li>
-        );
-      }
-      if (trimmedLine === '') {
-        return <div key={index} className="h-4" />;
-      }
-      return (
-        <p key={index} className="text-muted-foreground leading-relaxed">
-          {trimmedLine}
-        </p>
-      );
-    });
+// Helper to render itinerary details from the parsed JSON object
+const ItineraryContent = ({ itinerary }: { itinerary: Itinerary }) => {
+  return (
+    <Accordion type="single" collapsible className="w-full" defaultValue="day-1">
+      {itinerary.days.map((day) => (
+        <AccordionItem value={`day-${day.day}`} key={`day-${day.day}`}>
+          <AccordionTrigger className="font-headline text-lg hover:no-underline text-foreground">
+            Day {day.day}
+          </AccordionTrigger>
+          <AccordionContent className="pt-2 text-base">
+            <ul className="space-y-2">
+              {day.activities.map((activity, index) => (
+                <li key={index} className="ml-6 list-disc text-muted-foreground marker:text-accent">
+                  {activity}
+                </li>
+              ))}
+            </ul>
+            {day.cost && (
+              <p className="mt-3 font-semibold text-card-foreground">
+                Estimated Cost: ${day.cost.toLocaleString()}
+              </p>
+            )}
+          </AccordionContent>
+        </AccordionItem>
+      ))}
+       {itinerary.notes && (
+        <div className="mt-4 rounded-lg border border-accent/50 bg-accent/10 p-4">
+            <h4 className="font-bold text-accent-foreground mb-2">Notes from your Planner</h4>
+            <p className="text-sm text-accent-foreground/80">{itinerary.notes}</p>
+        </div>
+      )}
+    </Accordion>
+  );
 };
 
+
 export default function OnlyExplore() {
-  const [itinerary, setItinerary] = useState<string | null>(null);
+  const [itinerary, setItinerary] = useState<Itinerary | null>(null);
+  const [rawItinerary, setRawItinerary] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentDestination, setCurrentDestination] = useState('');
@@ -113,14 +122,42 @@ export default function OnlyExplore() {
     resolver: zodResolver(editFormSchema),
     defaultValues: { editRequest: '' },
   });
+  
+  const parseItinerary = (text: string) => {
+    try {
+        const parsedData = JSON.parse(text);
+        const validationResult = ItinerarySchema.safeParse(parsedData);
+        if (validationResult.success) {
+            setItinerary(validationResult.data);
+            setRawItinerary(text);
+        } else {
+            console.error('Itinerary validation error:', validationResult.error);
+            toast({
+              variant: 'destructive',
+              title: 'Could not understand the itinerary.',
+              description: 'The AI returned a plan in an unexpected format. Please try again.',
+            });
+            setItinerary(null);
+        }
+    } catch(e) {
+        console.error('Failed to parse itinerary JSON:', e);
+        toast({
+          variant: 'destructive',
+          title: 'Oh no! Something went wrong.',
+          description: "We couldn't read the itinerary from the AI. Please try again.",
+        });
+        setItinerary(null);
+    }
+  }
 
   async function onPlannerSubmit(values: z.infer<typeof plannerFormSchema>) {
     setIsLoading(true);
     setItinerary(null);
+    setRawItinerary(null);
     setCurrentDestination(values.destination);
     try {
       const result = await generateTravelItinerary(values);
-      setItinerary(result.itinerary);
+      parseItinerary(result.itinerary);
     } catch (error) {
       console.error('Error generating itinerary:', error);
       toast({
@@ -134,12 +171,12 @@ export default function OnlyExplore() {
   }
 
   async function onEditSubmit(values: z.infer<typeof editFormSchema>) {
-    if (!itinerary) return;
+    if (!rawItinerary) return;
     setIsEditing(true);
     setLastEditRequest(values.editRequest);
     try {
-      const result = await editItinerary({ itinerary, editRequest: values.editRequest });
-      setItinerary(result.updatedItinerary);
+      const result = await editItinerary({ itinerary: rawItinerary, editRequest: values.editRequest });
+      parseItinerary(result.updatedItinerary);
       editForm.reset();
     } catch (error) {
       console.error('Error editing itinerary:', error);
@@ -152,33 +189,11 @@ export default function OnlyExplore() {
       setIsEditing(false);
     }
   }
-
-  const handleShare = async () => {
-    if (!itinerary) return;
-
-    const shareData = {
-      title: `My Travel Itinerary for ${currentDestination}`,
-      text: `Check out my trip to ${currentDestination}! Here is the plan:\n\n${itinerary}`,
-    };
-
-    if (navigator.canShare && navigator.canShare(shareData) && navigator.share) {
-        try {
-            await navigator.share(shareData);
-            toast({ title: 'Itinerary shared successfully!' });
-        } catch (error) {
-            console.error('Error sharing itinerary:', error);
-            // Fallback to clipboard if sharing fails
-            handleCopyToClipboard();
-        }
-    } else {
-        handleCopyToClipboard();
-    }
-  };
-
+  
   const handleCopyToClipboard = async () => {
-      if (!itinerary) return;
+      if (!rawItinerary) return;
       try {
-        await navigator.clipboard.writeText(itinerary);
+        await navigator.clipboard.writeText(rawItinerary);
         toast({ title: 'Itinerary copied to clipboard!' });
       } catch (err) {
         toast({
@@ -189,14 +204,37 @@ export default function OnlyExplore() {
       }
   };
 
+  const handleShare = async () => {
+    if (!rawItinerary) return;
+
+    const shareData = {
+      title: `My Travel Itinerary for ${currentDestination}`,
+      text: `Check out my trip to ${currentDestination}! Here is the plan:\n\n${rawItinerary}`,
+    };
+
+    if (navigator.canShare && navigator.canShare(shareData) && navigator.share) {
+        try {
+            await navigator.share(shareData);
+            toast({ title: 'Itinerary shared successfully!' });
+        } catch (error) {
+            console.error('Error sharing itinerary:', error);
+            // Fallback to clipboard if sharing fails (e.g., permission denied)
+            handleCopyToClipboard();
+        }
+    } else {
+        // Fallback for browsers that don't support the Share API
+        handleCopyToClipboard();
+    }
+  };
+
 
   const handleDownloadPdf = async () => {
-    if (!itinerary) return;
+    if (!rawItinerary) return;
     try {
       const { default: jsPDF } = await import('jspdf');
       const doc = new jsPDF();
       doc.text(`Your Trip to ${currentDestination}`, 10, 10);
-      const textLines = doc.splitTextToSize(itinerary, 180); // 180 is the max width
+      const textLines = doc.splitTextToSize(rawItinerary, 180);
       doc.text(textLines, 10, 20);
       doc.save(`OnlyExplore-Itinerary-${currentDestination.replace(/\s/g, '_')}.pdf`);
       toast({ title: 'PDF Downloaded!', description: 'Your itinerary has been saved.' });
@@ -237,14 +275,6 @@ export default function OnlyExplore() {
   }
 
   if (itinerary) {
-    const daySections = itinerary.split(/(?=###\s*Day\s*\d+)/i);
-    const itineraryDays = daySections.filter(section => section.trim().length > 0).map(dayContent => {
-        const titleMatch = dayContent.match(/###\s*(.*?)\n/);
-        const title = titleMatch ? titleMatch[1] : 'Details';
-        const content = titleMatch ? dayContent.substring(titleMatch[0].length).trim() : dayContent.trim();
-        return { title, content };
-    });
-
     return (
       <Card className="w-full max-w-4xl shadow-2xl shadow-primary/10 flex flex-col h-[90vh]">
         <CardHeader>
@@ -262,6 +292,14 @@ export default function OnlyExplore() {
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent><p>Share</p></TooltipContent>
+                </Tooltip>
+                 <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={handleCopyToClipboard}>
+                        <Copy className="h-5 w-5 text-muted-foreground" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Copy</p></TooltipContent>
                 </Tooltip>
                  <Tooltip>
                     <TooltipTrigger asChild>
@@ -292,16 +330,7 @@ export default function OnlyExplore() {
                     </AvatarFallback>
                 </Avatar>
                 <div className="bg-muted rounded-lg p-4 w-full">
-                    <Accordion type="single" collapsible className="w-full" defaultValue="item-0">
-                    {itineraryDays.map((day, index) => (
-                        <AccordionItem value={`item-${index}`} key={index}>
-                        <AccordionTrigger className="font-headline text-lg hover:no-underline text-foreground">{day.title}</AccordionTrigger>
-                        <AccordionContent className="pt-2 text-base">
-                            <ul>{renderFormattedText(day.content)}</ul>
-                        </AccordionContent>
-                        </AccordionItem>
-                    ))}
-                    </Accordion>
+                    <ItineraryContent itinerary={itinerary} />
                 </div>
             </div>
             {lastEditRequest && (
@@ -438,9 +467,9 @@ export default function OnlyExplore() {
                 )}
                 />
             </div>
-            <Button type="submit" size="lg" className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg font-bold">
-              <Plane className="mr-2 h-5 w-5" />
-              Plan My Trip!
+            <Button type="submit" size="lg" className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg font-bold" disabled={isLoading}>
+              {isLoading ? 'Planning...' : 'Plan My Trip!'}
+              {!isLoading && <Plane className="ml-2 h-5 w-5" />}
             </Button>
           </form>
         </Form>
