@@ -78,7 +78,7 @@ const renderFormattedText = (text: string) => {
     });
 };
 
-export default function WanderChat() {
+export default function OnlyExplore() {
   const [itinerary, setItinerary] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -179,7 +179,7 @@ export default function WanderChat() {
       doc.text(`Your Trip to ${currentDestination}`, 10, 10);
       const textLines = doc.splitTextToSize(itinerary, 180); // 180 is the max width
       doc.text(textLines, 10, 20);
-      doc.save(`WanderChat-Itinerary-${currentDestination.replace(/\s/g, '_')}.pdf`);
+      doc.save(`OnlyExplore-Itinerary-${currentDestination.replace(/\s/g, '_')}.pdf`);
       toast({ title: 'PDF Downloaded!', description: 'Your itinerary has been saved.' });
     } catch(e) {
         console.error('Error downloading PDF', e);
@@ -345,7 +345,7 @@ export default function WanderChat() {
         <div className="mx-auto bg-primary/20 p-3 rounded-full w-fit mb-4">
             <Plane className="h-8 w-8 text-primary-foreground" />
         </div>
-        <CardTitle className="font-headline text-3xl">Welcome to WanderChat</CardTitle>
+        <CardTitle className="font-headline text-3xl">Welcome to Only Explore</CardTitle>
         <CardDescription>Your flirty, AI-powered travel planner. Let's dream up your next adventure together.</CardDescription>
       </CardHeader>
       <CardContent>
