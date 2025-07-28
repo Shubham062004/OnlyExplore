@@ -18,6 +18,8 @@ import {
   User,
   Wallet,
   Wand2,
+  LogOut,
+  Chrome,
 } from 'lucide-react';
 
 import { generateTravelItinerary } from '@/ai/flows/generate-travel-itinerary';
@@ -28,9 +30,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { useAuth } from '@/context/AuthContext';
 
 // Define the shape of the itinerary data we expect from the AI
 const ItineraryDaySchema = z.object({
@@ -107,6 +110,7 @@ export default function OnlyExplore() {
   const [lastEditRequest, setLastEditRequest] = useState<string | null>(null);
 
   const { toast } = useToast();
+  const { user, signOut, signInWithGoogle } = useAuth();
 
   const plannerForm = useForm<z.infer<typeof plannerFormSchema>>({
     resolver: zodResolver(plannerFormSchema),
@@ -141,23 +145,36 @@ export default function OnlyExplore() {
         }
     } catch(e) {
         console.error('Failed to parse itinerary JSON:', e);
-        toast({
-          variant: 'destructive',
-          title: 'Oh no! Something went wrong.',
-          description: "We couldn't read the itinerary from the AI. Please try again.",
-        });
-        setItinerary(null);
+        // If parsing fails, it might just be a regular string response.
+        // For now we just show the raw string in a simple format.
+        // A more robust solution might be needed depending on AI responses.
+         setItinerary({
+            destination: currentDestination,
+            duration: 0,
+            budget: 0,
+            interests: '',
+            days: [{ day: 1, activities: [text] }],
+         });
+         setRawItinerary(text);
     }
   }
 
   async function onPlannerSubmit(values: z.infer<typeof plannerFormSchema>) {
+    if (!user) {
+        toast({ title: 'Please log in to create an itinerary.' });
+        return;
+    }
     setIsLoading(true);
     setItinerary(null);
     setRawItinerary(null);
     setCurrentDestination(values.destination);
     try {
       const result = await generateTravelItinerary(values);
-      parseItinerary(result.itinerary);
+      if (result.itinerary) {
+        parseItinerary(result.itinerary);
+      } else {
+        throw new Error("Received empty itinerary from AI.");
+      }
     } catch (error) {
       console.error('Error generating itinerary:', error);
       toast({
@@ -176,7 +193,11 @@ export default function OnlyExplore() {
     setLastEditRequest(values.editRequest);
     try {
       const result = await editItinerary({ itinerary: rawItinerary, editRequest: values.editRequest });
-      parseItinerary(result.updatedItinerary);
+       if (result.updatedItinerary) {
+        parseItinerary(result.updatedItinerary);
+      } else {
+        throw new Error("Received empty updated itinerary from AI.");
+      }
       editForm.reset();
     } catch (error) {
       console.error('Error editing itinerary:', error);
@@ -191,10 +212,9 @@ export default function OnlyExplore() {
   }
   
   const handleCopyToClipboard = async () => {
-      if (!itinerary) return;
+      if (!rawItinerary) return;
       try {
-        const itineraryText = JSON.stringify(itinerary, null, 2);
-        await navigator.clipboard.writeText(itineraryText);
+        await navigator.clipboard.writeText(rawItinerary);
         toast({ title: 'Itinerary copied to clipboard!' });
       } catch (err) {
         toast({
@@ -208,7 +228,7 @@ export default function OnlyExplore() {
   const handleShare = async () => {
     if (!itinerary) return;
 
-    const itineraryText = `Check out my trip to ${itinerary.destination}! Here is the plan:\n\n${JSON.stringify(itinerary, null, 2)}`;
+    const itineraryText = `Check out my trip to ${itinerary.destination}! Here is the plan:\n\n${rawItinerary}`;
     
     const shareData = {
       title: `My Travel Itinerary for ${itinerary.destination}`,
@@ -222,6 +242,9 @@ export default function OnlyExplore() {
         } catch (error) {
             console.error('Error sharing itinerary:', error);
             // Fallback to clipboard if sharing fails (e.g., permission denied)
+            toast({
+                title: 'Sharing failed, copied to clipboard instead.',
+            });
             handleCopyToClipboard();
         }
     } else {
@@ -232,15 +255,14 @@ export default function OnlyExplore() {
 
 
   const handleDownloadPdf = async () => {
-    if (!itinerary) return;
+    if (!rawItinerary) return;
     try {
       const { default: jsPDF } = await import('jspdf');
       const doc = new jsPDF();
-      doc.text(`Your Trip to ${itinerary.destination}`, 10, 10);
-      const itineraryText = JSON.stringify(itinerary, null, 2);
-      const textLines = doc.splitTextToSize(itineraryText, 180);
+      doc.text(`Your Trip to ${itinerary?.destination || 'your destination'}`, 10, 10);
+      const textLines = doc.splitTextToSize(rawItinerary, 180);
       doc.text(textLines, 10, 20);
-      doc.save(`OnlyExplore-Itinerary-${itinerary.destination.replace(/\s/g, '_')}.pdf`);
+      doc.save(`OnlyExplore-Itinerary-${itinerary?.destination.replace(/\s/g, '_') || 'trip'}.pdf`);
       toast({ title: 'PDF Downloaded!', description: 'Your itinerary has been saved.' });
     } catch(e) {
         console.error('Error downloading PDF', e);
@@ -289,6 +311,16 @@ export default function OnlyExplore() {
             </div>
             <TooltipProvider>
               <div className="flex items-center gap-2">
+                 {user && (
+                  <Tooltip>
+                      <TooltipTrigger asChild>
+                           <Button variant="ghost" size="icon" onClick={signOut}>
+                              <LogOut className="h-5 w-5 text-muted-foreground" />
+                           </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Log Out</p></TooltipContent>
+                  </Tooltip>
+                 )}
                 <Tooltip>
                     <TooltipTrigger asChild>
                       <Button variant="ghost" size="icon" onClick={handleShare}>
@@ -343,6 +375,7 @@ export default function OnlyExplore() {
                         <p className="text-primary-foreground">{lastEditRequest}</p>
                     </div>
                       <Avatar>
+                         {user?.photoURL ? <AvatarImage src={user.photoURL} alt={user.displayName || 'User'} /> : null}
                         <AvatarFallback className="bg-secondary">
                             <User className="h-6 w-6" />
                         </AvatarFallback>
@@ -377,13 +410,13 @@ export default function OnlyExplore() {
                     <FormControl>
                       <div className="relative">
                         <Wand2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                        <Input placeholder="Need a change? Tell me what to edit..." className="pl-10" {...field} />
+                        <Input placeholder="Need a change? Tell me what to edit..." className="pl-10" {...field} disabled={!user}/>
                       </div>
                     </FormControl>
                   </FormItem>
                 )}
               />
-              <Button type="submit" size="icon" disabled={isEditing}>
+              <Button type="submit" size="icon" disabled={isEditing || !user}>
                 <SendHorizonal className="h-5 w-5" />
               </Button>
             </form>
@@ -400,83 +433,92 @@ export default function OnlyExplore() {
             <Plane className="h-8 w-8 text-primary-foreground" />
         </div>
         <CardTitle className="font-headline text-3xl">Welcome to Only Explore</CardTitle>
-        <CardDescription>Your flirty, AI-powered travel planner. Let's dream up your next adventure together.</CardDescription>
+        <CardDescription>Your AI-powered travel planner. Let's dream up your next adventure together.</CardDescription>
       </CardHeader>
       <CardContent>
-        <Form {...plannerForm}>
-          <form onSubmit={plannerForm.handleSubmit(onPlannerSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                control={plannerForm.control}
-                name="destination"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Where to?</FormLabel>
-                    <FormControl>
-                        <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                        <Input placeholder="e.g., Paris, France" className="pl-10" {...field} />
-                        </div>
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={plannerForm.control}
-                name="duration"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>How long?</FormLabel>
-                    <FormControl>
-                        <div className="relative">
-                        <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                        <Input placeholder="e.g., 7 days" className="pl-10" {...field} />
-                        </div>
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={plannerForm.control}
-                name="budget"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Budget</FormLabel>
-                    <FormControl>
-                        <div className="relative">
-                        <Wallet className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                        <Input placeholder="e.g., $2000" className="pl-10" {...field} />
-                        </div>
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={plannerForm.control}
-                name="interests"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>What are you into?</FormLabel>
-                    <FormControl>
-                        <div className="relative">
-                        <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                        <Input placeholder="e.g., food, history, hiking" className="pl-10" {...field} />
-                        </div>
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
+        {user ? (
+            <Form {...plannerForm}>
+            <form onSubmit={plannerForm.handleSubmit(onPlannerSubmit)} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                    control={plannerForm.control}
+                    name="destination"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Where to?</FormLabel>
+                        <FormControl>
+                            <div className="relative">
+                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                            <Input placeholder="e.g., Paris, France" className="pl-10" {...field} />
+                            </div>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={plannerForm.control}
+                    name="duration"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>How long?</FormLabel>
+                        <FormControl>
+                            <div className="relative">
+                            <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                            <Input placeholder="e.g., 7 days" className="pl-10" {...field} />
+                            </div>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={plannerForm.control}
+                    name="budget"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Budget</FormLabel>
+                        <FormControl>
+                            <div className="relative">
+                            <Wallet className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                            <Input placeholder="e.g., $2000" className="pl-10" {...field} />
+                            </div>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={plannerForm.control}
+                    name="interests"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>What are you into?</FormLabel>
+                        <FormControl>
+                            <div className="relative">
+                            <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                            <Input placeholder="e.g., food, history, hiking" className="pl-10" {...field} />
+                            </div>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
+                <Button type="submit" size="lg" className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg font-bold" disabled={isLoading}>
+                {isLoading ? 'Planning...' : 'Plan My Trip!'}
+                {!isLoading && <Plane className="ml-2 h-5 w-5" />}
+                </Button>
+            </form>
+            </Form>
+        ) : (
+            <div className="text-center">
+                <p className="mb-4 text-muted-foreground">Please log in to start planning your travels.</p>
+                <Button onClick={signInWithGoogle} size="lg">
+                    <Chrome className="mr-2 h-5 w-5" /> Sign in with Google
+                </Button>
             </div>
-            <Button type="submit" size="lg" className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg font-bold" disabled={isLoading}>
-              {isLoading ? 'Planning...' : 'Plan My Trip!'}
-              {!isLoading && <Plane className="ml-2 h-5 w-5" />}
-            </Button>
-          </form>
-        </Form>
+        )}
       </CardContent>
     </Card>
   );
