@@ -18,6 +18,7 @@ import {
   Wallet,
   Wand2,
 } from 'lucide-react';
+import jsPDF from 'jspdf';
 
 import { generateTravelItinerary } from '@/ai/flows/generate-travel-itinerary';
 import { editItinerary } from '@/ai/flows/edit-travel-itinerary';
@@ -141,6 +142,50 @@ export default function WanderChat() {
     }
   }
 
+  const handleShare = async () => {
+    if (navigator.share && itinerary) {
+      try {
+        await navigator.share({
+          title: `My Travel Itinerary for ${currentDestination}`,
+          text: `Check out my trip to ${currentDestination}! Here is the plan:\n\n${itinerary}`,
+        });
+        toast({ title: 'Itinerary shared successfully!' });
+      } catch (error) {
+        console.error('Error sharing itinerary:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Could not share itinerary.',
+          description: 'Your browser may not support this feature or an error occurred.',
+        });
+      }
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Share not supported.',
+        description: 'Your browser does not support the Web Share API.',
+      });
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    if (!itinerary) return;
+    try {
+      const doc = new jsPDF();
+      doc.text(`Your Trip to ${currentDestination}`, 10, 10);
+      const textLines = doc.splitTextToSize(itinerary, 180); // 180 is the max width
+      doc.text(textLines, 10, 20);
+      doc.save(`WanderChat-Itinerary-${currentDestination.replace(/\s/g, '_')}.pdf`);
+      toast({ title: 'PDF Downloaded!', description: 'Your itinerary has been saved.' });
+    } catch(e) {
+        console.error('Error downloading PDF', e);
+        toast({
+            variant: 'destructive',
+            title: 'Could not download PDF.',
+            description: 'An unexpected error occurred.',
+        });
+    }
+  };
+
   const ItineraryLoader = () => (
     <Card className="w-full max-w-4xl animate-pulse">
       <CardHeader>
@@ -168,9 +213,12 @@ export default function WanderChat() {
   }
 
   if (itinerary) {
-    const itineraryDays = itinerary.split(/###\s*Day\s*\d+/i).slice(1).map((dayContent, i) => {
-        const dayTitle = itinerary.match(/###\s*(Day\s*\d+.*)/i)?.[i+1] || `Day ${i+1}`;
-        return { title: dayTitle, content: dayContent.trim() };
+    const daySections = itinerary.split(/(?=###\s*Day\s*\d+)/i);
+    const itineraryDays = daySections.filter(section => section.trim().length > 0).map(dayContent => {
+        const titleMatch = dayContent.match(/###\s*(.*?)\n/);
+        const title = titleMatch ? titleMatch[1] : 'Details';
+        const content = titleMatch ? dayContent.substring(titleMatch[0].length).trim() : dayContent.trim();
+        return { title, content };
     });
 
     return (
@@ -183,22 +231,30 @@ export default function WanderChat() {
             </div>
             <TooltipProvider>
               <div className="flex items-center gap-2">
-                {[
-                  { icon: Share2, tooltip: 'Share' },
-                  { icon: Download, tooltip: 'Download PDF' },
-                  { icon: CalendarPlus, tooltip: 'Add to Calendar' },
-                ].map((item, index) => (
-                  <Tooltip key={index}>
+                <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <item.icon className="h-5 w-5 text-muted-foreground" />
+                      <Button variant="ghost" size="icon" onClick={handleShare}>
+                        <Share2 className="h-5 w-5 text-muted-foreground" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{item.tooltip}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
+                    <TooltipContent><p>Share</p></TooltipContent>
+                </Tooltip>
+                 <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={handleDownloadPdf}>
+                        <Download className="h-5 w-5 text-muted-foreground" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Download PDF</p></TooltipContent>
+                </Tooltip>
+                 <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <CalendarPlus className="h-5 w-5 text-muted-foreground" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Add to Calendar</p></TooltipContent>
+                </Tooltip>
               </div>
             </TooltipProvider>
           </div>
@@ -214,7 +270,7 @@ export default function WanderChat() {
                     <Accordion type="single" collapsible className="w-full" defaultValue="item-0">
                     {itineraryDays.map((day, index) => (
                         <AccordionItem value={`item-${index}`} key={index}>
-                        <AccordionTrigger className="font-headline text-lg hover:no-underline text-foreground">{day.title.split(':')[0]}: {day.title.split(':').slice(1).join(':').trim()}</AccordionTrigger>
+                        <AccordionTrigger className="font-headline text-lg hover:no-underline text-foreground">{day.title}</AccordionTrigger>
                         <AccordionContent className="pt-2 text-base">
                             <ul>{renderFormattedText(day.content)}</ul>
                         </AccordionContent>
