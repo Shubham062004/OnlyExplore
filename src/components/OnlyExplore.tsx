@@ -141,14 +141,11 @@ export default function OnlyExplore() {
         let finalData;
 
         // The AI can nest the itinerary object, so we need to find it.
-        if (parsedData.itinerary && typeof parsedData.itinerary === 'object') {
-             finalData = parsedData.itinerary;
-        } else if (parsedData.updatedItinerary && typeof parsedData.updatedItinerary === 'object') {
-             finalData = parsedData.updatedItinerary;
-        } else if (parsedData.itinerary && typeof parsedData.itinerary === 'string') {
-             finalData = JSON.parse(parsedData.itinerary);
-        } else if (parsedData.updatedItinerary && typeof parsedData.updatedItinerary === 'string') {
-             finalData = JSON.parse(parsedData.updatedItinerary);
+        // It can also be a stringified JSON inside a property.
+        if (parsedData.itinerary) {
+             finalData = typeof parsedData.itinerary === 'string' ? JSON.parse(parsedData.itinerary) : parsedData.itinerary;
+        } else if (parsedData.updatedItinerary) {
+             finalData = typeof parsedData.updatedItinerary === 'string' ? JSON.parse(parsedData.updatedItinerary) : parsedData.updatedItinerary;
         } else {
              finalData = parsedData;
         }
