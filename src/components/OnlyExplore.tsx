@@ -90,7 +90,7 @@ const ItineraryContent = ({ itinerary }: { itinerary: Itinerary }) => {
             </ul>
             {day.cost && (
               <p className="mt-3 font-semibold text-card-foreground">
-                Estimated Cost: ${day.cost.toLocaleString()}
+                Estimated Cost: ₹{day.cost.toLocaleString()}
               </p>
             )}
           </AccordionContent>
@@ -257,7 +257,7 @@ export default function OnlyExplore() {
               formattedText += `\n`;
           });
           if (day.cost) {
-              formattedText += `Estimated Cost: $${day.cost.toLocaleString()}\n`;
+              formattedText += `Estimated Cost: ₹${day.cost.toLocaleString()}\n`;
           }
           formattedText += `\n`;
       });
@@ -289,7 +289,7 @@ export default function OnlyExplore() {
             formattedText += `- ${activity.name}${activity.description ? `: ${activity.description}` : ''}\n`;
         });
         if (day.cost) {
-            formattedText += `Estimated Cost: $${day.cost.toLocaleString()}\n`;
+            formattedText += `Estimated Cost: ₹${day.cost.toLocaleString()}\n`;
         }
         formattedText += `\n`;
     });
@@ -370,7 +370,7 @@ export default function OnlyExplore() {
         if (day.cost) {
             yPos += 2;
             doc.setFont(undefined, 'bold');
-            doc.text(`Estimated Cost: $${day.cost.toLocaleString()}`, margin + 4, yPos);
+            doc.text(`Estimated Cost: ₹${day.cost.toLocaleString()}`, margin + 4, yPos);
             doc.setFont(undefined, 'normal');
             yPos += 5;
         }
@@ -612,7 +612,7 @@ export default function OnlyExplore() {
                         <FormControl>
                             <div className="relative">
                             <Wallet className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                            <Input placeholder="e.g., $2000" className="pl-10" {...field} />
+                            <Input placeholder="e.g., ₹100000" className="pl-10" {...field} />
                             </div>
                         </FormControl>
                         <FormMessage />
