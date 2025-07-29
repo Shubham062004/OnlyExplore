@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
-  title: 'Only Explore - Your AI Travel Planner',
-  description: 'Create personalized travel itineraries with our flirty, chat-based AI.',
+  title: 'WanderChat - Your AI Travel Planner',
+  description: 'Create personalized travel itineraries with our chat-based AI.',
 };
 
 export default function RootLayout({

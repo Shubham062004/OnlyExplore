@@ -11,9 +11,14 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+const ActivitySchema = z.object({
+  name: z.string().describe('A short, catchy name for the activity.'),
+  description: z.string().optional().describe('A brief, one-sentence description of the activity.'),
+});
+
 const ItineraryDaySchema = z.object({
   day: z.number().describe("The day number of the itinerary (e.g., 1, 2, 3)."),
-  activities: z.array(z.string()).describe("A list of activities planned for the day."),
+  activities: z.array(ActivitySchema).describe("A list of activities planned for the day. Each activity should be an object with a 'name' and optional 'description'."),
   cost: z.number().optional().describe("Estimated cost for the day's activities."),
 });
 
@@ -21,7 +26,7 @@ const ItinerarySchema = z.object({
     destination: z.string().describe("The user's travel destination."),
     duration: z.number().describe("The total number of days for the trip."),
     budget: z.number().describe("The user's total budget for the trip."),
-    interests: z.string().describe("The user's stated interests."),
+    interests: z.array(z.string()).describe("A list of the user's interests that were considered."),
     days: z.array(ItineraryDaySchema).describe("A detailed plan for each day of the trip."),
     totalCost: z.number().optional().describe("The total estimated cost for the entire itinerary."),
     notes: z.string().optional().describe("Any additional notes, warnings (e.g., about budget), or suggestions."),
@@ -61,9 +66,11 @@ User's Edit Request:
 Instructions:
 1.  Read the current itinerary and the user's request carefully.
 2.  Modify the itinerary to reflect the requested changes. This may involve adding, removing, or changing days, activities, or destinations.
-3.  Recalculate costs if necessary.
-4.  Update the 'notes' field if the edit has implications for the budget or schedule.
-5.  Return the complete, new itinerary as a single, valid JSON string. Do not include any text or markdown formatting outside of the JSON object.
+3.  For each day, the 'activities' field must be an array of objects, where each object has a 'name' and an optional 'description'.
+4.  The 'interests' field must be an array of strings.
+5.  Recalculate costs if necessary.
+6.  Update the 'notes' field if the edit has implications for the budget or schedule.
+7.  Return the complete, new itinerary as a single, valid JSON string. Do not include any text or markdown formatting outside of the JSON object.
   `,
 });
 

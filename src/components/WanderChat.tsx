@@ -32,9 +32,14 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
+const ActivitySchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+});
+
 const ItineraryDaySchema = z.object({
   day: z.number(),
-  activities: z.array(z.string()),
+  activities: z.array(ActivitySchema),
   cost: z.number().optional(),
 });
 
@@ -42,7 +47,7 @@ const ItinerarySchema = z.object({
   destination: z.string(),
   duration: z.number(),
   budget: z.number(),
-  interests: z.string(),
+  interests: z.array(z.string()),
   days: z.array(ItineraryDaySchema),
   totalCost: z.number().optional(),
   notes: z.string().optional(),
@@ -78,7 +83,8 @@ const ItineraryContent = ({ itinerary }: { itinerary: Itinerary }) => {
             <ul className="space-y-2">
               {day.activities.map((activity, index) => (
                 <li key={index} className="ml-6 list-disc text-muted-foreground marker:text-accent">
-                  {activity}
+                  <strong>{activity.name}</strong>
+                  {activity.description && `: ${activity.description}`}
                 </li>
               ))}
             </ul>
@@ -242,9 +248,11 @@ export default function OnlyExplore() {
     const { itinerary, rawItinerary } = getLatestItinerary();
     if (!itinerary || !rawItinerary) return;
     
+    const shareableText = `Check out my trip to ${itinerary.destination}! Here is the plan:\n\n${JSON.stringify(itinerary, null, 2)}`;
+    
     const shareData = {
       title: `My Travel Itinerary for ${itinerary.destination}`,
-      text: `Check out my trip to ${itinerary.destination}! Here is the plan:\n\n${rawItinerary}`,
+      text: shareableText,
     };
 
     if (navigator.share) {
@@ -252,6 +260,10 @@ export default function OnlyExplore() {
             await navigator.share(shareData);
             toast({ title: 'Itinerary shared successfully!' });
         } catch (error) {
+           if (error instanceof DOMException && error.name === 'AbortError') {
+                // Silently ignore abort errors
+                return;
+            }
             console.error('Error sharing itinerary:', error);
             toast({
                 title: 'Sharing failed, copied to clipboard instead.',
@@ -265,15 +277,70 @@ export default function OnlyExplore() {
 
 
   const handleDownloadPdf = async () => {
-    const { itinerary, rawItinerary } = getLatestItinerary();
-    if (!itinerary || !rawItinerary) return;
+    const { itinerary } = getLatestItinerary();
+    if (!itinerary) return;
     try {
       const { default: jsPDF } = await import('jspdf');
       const doc = new jsPDF();
-      doc.text(`Your Trip to ${itinerary.destination}`, 10, 10);
-      const textLines = doc.splitTextToSize(rawItinerary, 180);
-      doc.text(textLines, 10, 20);
-      doc.save(`OnlyExplore-Itinerary-${itinerary.destination.replace(/\s/g, '_')}.pdf`);
+      
+      doc.setFontSize(18);
+      doc.text(`Your Trip to ${itinerary.destination}`, 14, 22);
+      
+      doc.setFontSize(11);
+      doc.setTextColor(100);
+      
+      let yPos = 35;
+
+      itinerary.days.forEach(day => {
+        if (yPos > 270) {
+            doc.addPage();
+            yPos = 20;
+        }
+        doc.setFontSize(14);
+        doc.setTextColor(0);
+        doc.text(`Day ${day.day}`, 14, yPos);
+        yPos += 7;
+
+        doc.setFontSize(11);
+        doc.setTextColor(50);
+        day.activities.forEach(activity => {
+            if (yPos > 280) {
+                doc.addPage();
+                yPos = 20;
+            }
+            const activityText = `${activity.name}${activity.description ? `: ${activity.description}` : ''}`;
+            const splitText = doc.splitTextToSize(activityText, 180);
+            doc.text(`- ${splitText}`, 18, yPos);
+            yPos += (splitText.length * 5);
+        });
+        
+        if (day.cost) {
+            yPos += 2;
+            doc.setFont(undefined, 'bold');
+            doc.text(`Estimated Cost: $${day.cost.toLocaleString()}`, 18, yPos);
+            doc.setFont(undefined, 'normal');
+        }
+
+        yPos += 10;
+      });
+
+      if (itinerary.notes) {
+         if (yPos > 260) {
+            doc.addPage();
+            yPos = 20;
+        }
+        doc.setFontSize(12);
+        doc.setTextColor(0);
+        doc.setFont(undefined, 'bold');
+        doc.text('Notes from your Planner', 14, yPos);
+        yPos += 7;
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(80);
+        const notesText = doc.splitTextToSize(itinerary.notes, 180);
+        doc.text(notesText, 14, yPos);
+      }
+      
+      doc.save(`WanderChat-Itinerary-${itinerary.destination.replace(/\s/g, '_')}.pdf`);
       toast({ title: 'PDF Downloaded!', description: 'Your itinerary has been saved.' });
     } catch(e) {
         console.error('Error downloading PDF', e);
@@ -443,7 +510,7 @@ export default function OnlyExplore() {
         <div className="mx-auto bg-primary/20 p-3 rounded-full w-fit mb-4">
             <Plane className="h-8 w-8 text-primary-foreground" />
         </div>
-        <CardTitle className="font-headline text-3xl">Welcome to Only Explore</CardTitle>
+        <CardTitle className="font-headline text-3xl">Welcome to WanderChat</CardTitle>
         <CardDescription>Your AI-powered travel planner. Let's dream up your next adventure together.</CardDescription>
       </CardHeader>
       <CardContent>

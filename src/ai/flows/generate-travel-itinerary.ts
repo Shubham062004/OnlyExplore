@@ -18,9 +18,14 @@ const GenerateTravelItineraryInputSchema = z.object({
 });
 export type GenerateTravelItineraryInput = z.infer<typeof GenerateTravelItineraryInputSchema>;
 
+const ActivitySchema = z.object({
+  name: z.string().describe('A short, catchy name for the activity.'),
+  description: z.string().optional().describe('A brief, one-sentence description of the activity.'),
+});
+
 const ItineraryDaySchema = z.object({
   day: z.number().describe("The day number of the itinerary (e.g., 1, 2, 3)."),
-  activities: z.array(z.string()).describe("A list of activities planned for the day."),
+  activities: z.array(ActivitySchema).describe("A list of activities planned for the day. Each activity should be an object with a 'name' and optional 'description'."),
   cost: z.number().optional().describe("Estimated cost for the day's activities."),
 });
 
@@ -28,7 +33,7 @@ const ItinerarySchema = z.object({
     destination: z.string().describe("The user's travel destination."),
     duration: z.number().describe("The total number of days for the trip."),
     budget: z.number().describe("The user's total budget for the trip."),
-    interests: z.string().describe("The user's stated interests."),
+    interests: z.array(z.string()).describe("A list of the user's interests that were considered."),
     days: z.array(ItineraryDaySchema).describe("A detailed plan for each day of the trip."),
     totalCost: z.number().optional().describe("The total estimated cost for the entire itinerary."),
     notes: z.string().optional().describe("Any additional notes, warnings (e.g., about budget), or suggestions."),
@@ -63,9 +68,10 @@ Interests: {{interests}}
 Instructions:
 1.  Parse the numeric values for duration and budget.
 2.  Create a detailed itinerary with a specific plan for each day.
-3.  Include specific places to visit, activities, and estimated costs for each day if possible.
+3.  For each day, provide a list of activity objects, each with a 'name' and a short 'description'.
 4.  If the user's budget seems insufficient for their request, create the best itinerary possible and add a note in the 'notes' field explaining that the budget may be tight and suggest potential adjustments.
-5.  Provide the output as a single, valid JSON string. Do not include any text or markdown formatting outside of the JSON object.
+5.  The 'interests' field in the output should be an array of strings.
+6.  Provide the output as a single, valid JSON string. Do not include any text or markdown formatting outside of the JSON object.
 `,
 });
 
