@@ -138,15 +138,19 @@ export default function OnlyExplore() {
 
         const jsonString = text.substring(jsonStart, jsonEnd + 1);
         const parsedData = JSON.parse(jsonString);
-        let finalData = parsedData;
+        let finalData;
 
-        // If the AI wraps the itinerary in a root "itinerary" key, unwrap it.
+        // The AI can nest the itinerary object, so we need to find it.
         if (parsedData.itinerary && typeof parsedData.itinerary === 'object') {
-             const nestedJsonString = JSON.stringify(parsedData.itinerary);
-             finalData = JSON.parse(nestedJsonString);
+             finalData = parsedData.itinerary;
         } else if (parsedData.updatedItinerary && typeof parsedData.updatedItinerary === 'object') {
-            const nestedJsonString = JSON.stringify(parsedData.updatedItinerary);
-            finalData = JSON.parse(nestedJsonString);
+             finalData = parsedData.updatedItinerary;
+        } else if (parsedData.itinerary && typeof parsedData.itinerary === 'string') {
+             finalData = JSON.parse(parsedData.itinerary);
+        } else if (parsedData.updatedItinerary && typeof parsedData.updatedItinerary === 'string') {
+             finalData = JSON.parse(parsedData.updatedItinerary);
+        } else {
+             finalData = parsedData;
         }
 
         const validationResult = ItinerarySchema.safeParse(finalData);
