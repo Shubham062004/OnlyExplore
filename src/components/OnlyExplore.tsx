@@ -328,25 +328,31 @@ export default function OnlyExplore() {
     if (!itinerary) return;
     try {
       const { default: jsPDF } = await import('jspdf');
-      const doc = new jsPDF();
+      const doc = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4'
+      });
       
-      doc.setFontSize(18);
-      doc.text(`Your Trip to ${itinerary.destination}`, 14, 22);
-      
-      doc.setFontSize(11);
-      doc.setTextColor(100);
-      
-      let yPos = 35;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 14;
+      const contentWidth = pageWidth - margin * 2;
+      let yPos = 22;
 
+      doc.setFontSize(18);
+      doc.text(`Your Trip to ${itinerary.destination}`, margin, yPos);
+      yPos += 12;
+      
       itinerary.days.forEach(day => {
-        if (yPos > 270) {
+        if (yPos > 270) { 
             doc.addPage();
             yPos = 20;
         }
         doc.setFontSize(14);
-        doc.setTextColor(0);
-        doc.text(`Day ${day.day}`, 14, yPos);
+        doc.setFont(undefined, 'bold');
+        doc.text(`Day ${day.day}`, margin, yPos);
         yPos += 7;
+        doc.setFont(undefined, 'normal');
 
         doc.setFontSize(11);
         doc.setTextColor(50);
@@ -356,19 +362,20 @@ export default function OnlyExplore() {
                 yPos = 20;
             }
             const activityText = `${activity.name}${activity.description ? `: ${activity.description}` : ''}`;
-            const splitText = doc.splitTextToSize(activityText, 180);
-            doc.text(`- ${splitText}`, 18, yPos);
+            const splitText = doc.splitTextToSize(`- ${activityText}`, contentWidth - 4);
+            doc.text(splitText, margin + 4, yPos);
             yPos += (splitText.length * 5);
         });
         
         if (day.cost) {
             yPos += 2;
             doc.setFont(undefined, 'bold');
-            doc.text(`Estimated Cost: $${day.cost.toLocaleString()}`, 18, yPos);
+            doc.text(`Estimated Cost: $${day.cost.toLocaleString()}`, margin + 4, yPos);
             doc.setFont(undefined, 'normal');
+            yPos += 5;
         }
 
-        yPos += 10;
+        yPos += 5;
       });
 
       if (itinerary.notes) {
@@ -379,12 +386,12 @@ export default function OnlyExplore() {
         doc.setFontSize(12);
         doc.setTextColor(0);
         doc.setFont(undefined, 'bold');
-        doc.text('Notes from your Planner', 14, yPos);
+        doc.text('Notes from your Planner', margin, yPos);
         yPos += 7;
         doc.setFont(undefined, 'normal');
         doc.setTextColor(80);
-        const notesText = doc.splitTextToSize(itinerary.notes, 180);
-        doc.text(notesText, 14, yPos);
+        const notesText = doc.splitTextToSize(itinerary.notes, contentWidth);
+        doc.text(notesText, margin, yPos);
       }
       
       doc.save(`OnlyExplore-Itinerary-${itinerary.destination.replace(/\s/g, '_')}.pdf`);
