@@ -125,11 +125,21 @@ export default function OnlyExplore() {
   
   const parseItinerary = (text: string) => {
     try {
-        const parsedData = JSON.parse(text);
+        // Find the start and end of the JSON object
+        const jsonStart = text.indexOf('{');
+        const jsonEnd = text.lastIndexOf('}');
+        
+        if (jsonStart === -1 || jsonEnd === -1) {
+          throw new Error("No JSON object found in the response.");
+        }
+
+        const jsonString = text.substring(jsonStart, jsonEnd + 1);
+        const parsedData = JSON.parse(jsonString);
         const validationResult = ItinerarySchema.safeParse(parsedData);
+
         if (validationResult.success) {
             setItinerary(validationResult.data);
-            setRawItinerary(text);
+            setRawItinerary(jsonString); // Save the clean JSON string
         } else {
             console.error('Itinerary validation error:', validationResult.error);
             toast({
@@ -141,17 +151,13 @@ export default function OnlyExplore() {
         }
     } catch(e) {
         console.error('Failed to parse itinerary JSON:', e);
-        // If parsing fails, it might just be a regular string response.
-        // For now we just show the raw string in a simple format.
-        // A more robust solution might be needed depending on AI responses.
-         setItinerary({
-            destination: currentDestination,
-            duration: 0,
-            budget: 0,
-            interests: '',
-            days: [{ day: 1, activities: [text] }],
-         });
-         setRawItinerary(text);
+         toast({
+            variant: 'destructive',
+            title: 'Could not read the itinerary.',
+            description: 'The AI response was not in a readable format. Please try again.',
+        });
+        setItinerary(null);
+        setRawItinerary(null);
     }
   }
 
@@ -218,13 +224,11 @@ export default function OnlyExplore() {
   };
 
   const handleShare = async () => {
-    if (!itinerary) return;
-
-    const itineraryText = `Check out my trip to ${itinerary.destination}! Here is the plan:\n\n${rawItinerary}`;
+    if (!itinerary || !rawItinerary) return;
     
     const shareData = {
       title: `My Travel Itinerary for ${itinerary.destination}`,
-      text: itineraryText,
+      text: `Check out my trip to ${itinerary.destination}! Here is the plan:\n\n${rawItinerary}`,
     };
 
     if (navigator.share) {
