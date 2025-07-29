@@ -28,17 +28,15 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
-// Define the shape of the itinerary data we expect from the AI
 const ItineraryDaySchema = z.object({
   day: z.number(),
   activities: z.array(z.string()),
   cost: z.number().optional(),
 });
-type ItineraryDay = z.infer<typeof ItineraryDaySchema>;
 
 const ItinerarySchema = z.object({
   destination: z.string(),
@@ -51,6 +49,12 @@ const ItinerarySchema = z.object({
 });
 type Itinerary = z.infer<typeof ItinerarySchema>;
 
+type ChatMessage = {
+  type: 'user' | 'bot';
+  content: string | Itinerary;
+  rawItinerary?: string;
+};
+
 const plannerFormSchema = z.object({
   destination: z.string().min(3, 'Please enter a destination.'),
   duration: z.string().min(3, 'Please enter a trip duration.'),
@@ -62,7 +66,6 @@ const editFormSchema = z.object({
   editRequest: z.string().min(5, 'Please enter a more detailed request.'),
 });
 
-// Helper to render itinerary details from the parsed JSON object
 const ItineraryContent = ({ itinerary }: { itinerary: Itinerary }) => {
   return (
     <Accordion type="single" collapsible className="w-full" defaultValue="day-1">
@@ -97,15 +100,10 @@ const ItineraryContent = ({ itinerary }: { itinerary: Itinerary }) => {
   );
 };
 
-
 export default function OnlyExplore() {
-  const [itinerary, setItinerary] = useState<Itinerary | null>(null);
-  const [rawItinerary, setRawItinerary] = useState<string | null>(null);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [currentDestination, setCurrentDestination] = useState('');
-  const [lastEditRequest, setLastEditRequest] = useState<string | null>(null);
-
   const { toast } = useToast();
 
   const plannerForm = useForm<z.infer<typeof plannerFormSchema>>({
@@ -123,9 +121,8 @@ export default function OnlyExplore() {
     defaultValues: { editRequest: '' },
   });
   
-  const parseItinerary = (text: string) => {
+  const parseAndSetItinerary = (text: string, source: 'initial' | 'edit') => {
     try {
-        // Find the start and end of the JSON object
         const jsonStart = text.indexOf('{');
         const jsonEnd = text.lastIndexOf('}');
         
@@ -138,8 +135,16 @@ export default function OnlyExplore() {
         const validationResult = ItinerarySchema.safeParse(parsedData);
 
         if (validationResult.success) {
-            setItinerary(validationResult.data);
-            setRawItinerary(jsonString); // Save the clean JSON string
+            const newBotMessage: ChatMessage = {
+                type: 'bot',
+                content: validationResult.data,
+                rawItinerary: jsonString,
+            };
+            if (source === 'initial') {
+              setChatHistory([newBotMessage]);
+            } else {
+              setChatHistory(prev => [...prev, newBotMessage]);
+            }
         } else {
             console.error('Itinerary validation error:', validationResult.error);
             toast({
@@ -147,7 +152,6 @@ export default function OnlyExplore() {
               title: 'Could not understand the itinerary.',
               description: 'The AI returned a plan in an unexpected format. Please try again.',
             });
-            setItinerary(null);
         }
     } catch(e) {
         console.error('Failed to parse itinerary JSON:', e);
@@ -156,20 +160,16 @@ export default function OnlyExplore() {
             title: 'Could not read the itinerary.',
             description: 'The AI response was not in a readable format. Please try again.',
         });
-        setItinerary(null);
-        setRawItinerary(null);
     }
   }
 
   async function onPlannerSubmit(values: z.infer<typeof plannerFormSchema>) {
     setIsLoading(true);
-    setItinerary(null);
-    setRawItinerary(null);
-    setCurrentDestination(values.destination);
+    setChatHistory([]);
     try {
       const result = await generateTravelItinerary(values);
       if (result.itinerary) {
-        parseItinerary(result.itinerary);
+        parseAndSetItinerary(result.itinerary, 'initial');
       } else {
         throw new Error("Received empty itinerary from AI.");
       }
@@ -184,15 +184,19 @@ export default function OnlyExplore() {
       setIsLoading(false);
     }
   }
-
+  
   async function onEditSubmit(values: z.infer<typeof editFormSchema>) {
-    if (!rawItinerary) return;
+    const lastMessage = chatHistory[chatHistory.length - 1];
+    if (!lastMessage || lastMessage.type !== 'bot' || !lastMessage.rawItinerary) return;
+
     setIsEditing(true);
-    setLastEditRequest(values.editRequest);
+    const userMessage: ChatMessage = { type: 'user', content: values.editRequest };
+    setChatHistory(prev => [...prev, userMessage]);
+
     try {
-      const result = await editItinerary({ itinerary: rawItinerary, editRequest: values.editRequest });
+      const result = await editItinerary({ itinerary: lastMessage.rawItinerary, editRequest: values.editRequest });
        if (result.updatedItinerary) {
-        parseItinerary(result.updatedItinerary);
+        parseAndSetItinerary(result.updatedItinerary, 'edit');
       } else {
         throw new Error("Received empty updated itinerary from AI.");
       }
@@ -204,12 +208,23 @@ export default function OnlyExplore() {
         title: 'Oops! Couldn\'t make that change.',
         description: 'There was an issue updating your itinerary. Please rephrase your request.',
       });
+       // remove the user message if edit fails
+       setChatHistory(prev => prev.slice(0, prev.length -1));
     } finally {
       setIsEditing(false);
     }
   }
+
+  const getLatestItinerary = (): { itinerary: Itinerary | null, rawItinerary: string | null } => {
+    const lastBotMessage = [...chatHistory].reverse().find(m => m.type === 'bot');
+    if (lastBotMessage && typeof lastBotMessage.content !== 'string') {
+        return { itinerary: lastBotMessage.content, rawItinerary: lastBotMessage.rawItinerary || null };
+    }
+    return { itinerary: null, rawItinerary: null };
+  };
   
   const handleCopyToClipboard = async () => {
+      const { rawItinerary } = getLatestItinerary();
       if (!rawItinerary) return;
       try {
         await navigator.clipboard.writeText(rawItinerary);
@@ -224,6 +239,7 @@ export default function OnlyExplore() {
   };
 
   const handleShare = async () => {
+    const { itinerary, rawItinerary } = getLatestItinerary();
     if (!itinerary || !rawItinerary) return;
     
     const shareData = {
@@ -237,28 +253,27 @@ export default function OnlyExplore() {
             toast({ title: 'Itinerary shared successfully!' });
         } catch (error) {
             console.error('Error sharing itinerary:', error);
-            // Fallback to clipboard if sharing fails (e.g., permission denied)
             toast({
                 title: 'Sharing failed, copied to clipboard instead.',
             });
             handleCopyToClipboard();
         }
     } else {
-        // Fallback for browsers that don't support the Share API
         handleCopyToClipboard();
     }
   };
 
 
   const handleDownloadPdf = async () => {
-    if (!rawItinerary) return;
+    const { itinerary, rawItinerary } = getLatestItinerary();
+    if (!itinerary || !rawItinerary) return;
     try {
       const { default: jsPDF } = await import('jspdf');
       const doc = new jsPDF();
-      doc.text(`Your Trip to ${itinerary?.destination || 'your destination'}`, 10, 10);
+      doc.text(`Your Trip to ${itinerary.destination}`, 10, 10);
       const textLines = doc.splitTextToSize(rawItinerary, 180);
       doc.text(textLines, 10, 20);
-      doc.save(`OnlyExplore-Itinerary-${itinerary?.destination.replace(/\s/g, '_') || 'trip'}.pdf`);
+      doc.save(`OnlyExplore-Itinerary-${itinerary.destination.replace(/\s/g, '_')}.pdf`);
       toast({ title: 'PDF Downloaded!', description: 'Your itinerary has been saved.' });
     } catch(e) {
         console.error('Error downloading PDF', e);
@@ -296,13 +311,14 @@ export default function OnlyExplore() {
     return <ItineraryLoader />;
   }
 
-  if (itinerary) {
+  if (chatHistory.length > 0) {
+    const { itinerary } = getLatestItinerary();
     return (
       <Card className="w-full max-w-4xl shadow-2xl shadow-primary/10 flex flex-col h-[90vh]">
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
-              <CardTitle className="font-headline text-3xl text-foreground">Your Trip to {itinerary.destination}</CardTitle>
+              <CardTitle className="font-headline text-3xl text-foreground">Your Trip to {itinerary?.destination || '...'}</CardTitle>
               <CardDescription>Here is your personalized AI-generated travel plan. Have fun!</CardDescription>
             </div>
             <TooltipProvider>
@@ -345,28 +361,38 @@ export default function OnlyExplore() {
         </CardHeader>
         <CardContent className="flex-grow overflow-y-auto custom-scrollbar p-6 pt-0">
           <div className="space-y-4">
-            <div className="flex items-start gap-4">
-                <Avatar className="border-2 border-accent">
-                    <AvatarFallback className="bg-accent text-accent-foreground">
-                        <Bot className="h-6 w-6" />
-                    </AvatarFallback>
-                </Avatar>
-                <div className="bg-muted rounded-lg p-4 w-full">
-                    <ItineraryContent itinerary={itinerary} />
-                </div>
-            </div>
-            {lastEditRequest && (
-                <div className="flex items-start gap-4 justify-end">
-                    <div className="bg-primary/20 rounded-lg p-4 max-w-[80%]">
-                        <p className="text-primary-foreground">{lastEditRequest}</p>
-                    </div>
-                      <Avatar>
-                        <AvatarFallback className="bg-secondary">
-                            <User className="h-6 w-6" />
-                        </AvatarFallback>
-                    </Avatar>
-                </div>
-            )}
+            {chatHistory.map((message, index) => {
+              if (message.type === 'bot') {
+                return (
+                  <div key={index} className="flex items-start gap-4">
+                      <Avatar className="border-2 border-accent">
+                          <AvatarFallback className="bg-accent text-accent-foreground">
+                              <Bot className="h-6 w-6" />
+                          </AvatarFallback>
+                      </Avatar>
+                      <div className="bg-muted rounded-lg p-4 w-full">
+                          {typeof message.content === 'string' ? <p>{message.content}</p> : <ItineraryContent itinerary={message.content} />}
+                      </div>
+                  </div>
+                )
+              }
+              if (message.type === 'user') {
+                return (
+                  <div key={index} className="flex items-start gap-4 justify-end">
+                      <div className="bg-primary/20 rounded-lg p-4 max-w-[80%]">
+                          <p className="text-primary-foreground">{message.content as string}</p>
+                      </div>
+                        <Avatar>
+                          <AvatarFallback className="bg-secondary">
+                              <User className="h-6 w-6" />
+                          </AvatarFallback>
+                      </Avatar>
+                  </div>
+                )
+              }
+              return null;
+            })}
+            
             {isEditing && (
                 <div className="flex items-center gap-4">
                       <Avatar className="border-2 border-accent">
