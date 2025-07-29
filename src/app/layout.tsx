@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
-  title: 'WanderChat - Your AI Travel Planner',
+  title: 'Only Explore - Your AI Travel Planner',
   description: 'Create personalized travel itineraries with our chat-based AI.',
 };
 
