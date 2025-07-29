@@ -138,13 +138,24 @@ export default function OnlyExplore() {
 
         const jsonString = text.substring(jsonStart, jsonEnd + 1);
         const parsedData = JSON.parse(jsonString);
-        const validationResult = ItinerarySchema.safeParse(parsedData);
+        let finalData = parsedData;
+
+        // If the AI wraps the itinerary in a root "itinerary" key, unwrap it.
+        if (parsedData.itinerary && typeof parsedData.itinerary === 'object') {
+             const nestedJsonString = JSON.stringify(parsedData.itinerary);
+             finalData = JSON.parse(nestedJsonString);
+        } else if (parsedData.updatedItinerary && typeof parsedData.updatedItinerary === 'object') {
+            const nestedJsonString = JSON.stringify(parsedData.updatedItinerary);
+            finalData = JSON.parse(nestedJsonString);
+        }
+
+        const validationResult = ItinerarySchema.safeParse(finalData);
 
         if (validationResult.success) {
             const newBotMessage: ChatMessage = {
                 type: 'bot',
                 content: validationResult.data,
-                rawItinerary: jsonString,
+                rawItinerary: JSON.stringify(validationResult.data),
             };
             if (source === 'initial') {
               setChatHistory([newBotMessage]);
@@ -174,8 +185,9 @@ export default function OnlyExplore() {
     setChatHistory([]);
     try {
       const result = await generateTravelItinerary(values);
-      if (result.itinerary) {
-        parseAndSetItinerary(result.itinerary, 'initial');
+      const itineraryString = result.itinerary;
+      if (itineraryString) {
+        parseAndSetItinerary(itineraryString, 'initial');
       } else {
         throw new Error("Received empty itinerary from AI.");
       }
@@ -230,10 +242,31 @@ export default function OnlyExplore() {
   };
   
   const handleCopyToClipboard = async () => {
-      const { rawItinerary } = getLatestItinerary();
-      if (!rawItinerary) return;
+      const { itinerary } = getLatestItinerary();
+      if (!itinerary) return;
+
+      let formattedText = `Your Trip to ${itinerary.destination}\n\n`;
+      itinerary.days.forEach(day => {
+          formattedText += `Day ${day.day}\n`;
+          day.activities.forEach(activity => {
+              formattedText += `- ${activity.name}`;
+              if (activity.description) {
+                  formattedText += `: ${activity.description}`;
+              }
+              formattedText += `\n`;
+          });
+          if (day.cost) {
+              formattedText += `Estimated Cost: $${day.cost.toLocaleString()}\n`;
+          }
+          formattedText += `\n`;
+      });
+
+      if (itinerary.notes) {
+          formattedText += `Notes:\n${itinerary.notes}\n`;
+      }
+
       try {
-        await navigator.clipboard.writeText(rawItinerary);
+        await navigator.clipboard.writeText(formattedText);
         toast({ title: 'Itinerary copied to clipboard!' });
       } catch (err) {
         toast({
@@ -245,14 +278,27 @@ export default function OnlyExplore() {
   };
 
   const handleShare = async () => {
-    const { itinerary, rawItinerary } = getLatestItinerary();
-    if (!itinerary || !rawItinerary) return;
-    
-    const shareableText = `Check out my trip to ${itinerary.destination}! Here is the plan:\n\n${JSON.stringify(itinerary, null, 2)}`;
+    const { itinerary } = getLatestItinerary();
+    if (!itinerary) return;
+
+    let formattedText = `Check out my trip to ${itinerary.destination}!\n\n`;
+     itinerary.days.forEach(day => {
+        formattedText += `Day ${day.day}\n`;
+        day.activities.forEach(activity => {
+            formattedText += `- ${activity.name}${activity.description ? `: ${activity.description}` : ''}\n`;
+        });
+        if (day.cost) {
+            formattedText += `Estimated Cost: $${day.cost.toLocaleString()}\n`;
+        }
+        formattedText += `\n`;
+    });
+     if (itinerary.notes) {
+        formattedText += `Notes:\n${itinerary.notes}\n`;
+    }
     
     const shareData = {
       title: `My Travel Itinerary for ${itinerary.destination}`,
-      text: shareableText,
+      text: formattedText,
     };
 
     if (navigator.share) {
@@ -261,14 +307,14 @@ export default function OnlyExplore() {
             toast({ title: 'Itinerary shared successfully!' });
         } catch (error) {
            if (error instanceof DOMException && error.name === 'AbortError') {
-                // Silently ignore abort errors
                 return;
             }
             console.error('Error sharing itinerary:', error);
             toast({
-                title: 'Sharing failed, copied to clipboard instead.',
+                variant: "destructive",
+                title: 'Sharing failed.',
+                description: 'Could not share itinerary. Please try again.',
             });
-            handleCopyToClipboard();
         }
     } else {
         handleCopyToClipboard();
