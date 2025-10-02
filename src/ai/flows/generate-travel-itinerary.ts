@@ -56,22 +56,39 @@ const prompt = ai.definePrompt({
       schema: GenerateTravelItineraryOutputSchema,
       format: 'json'
   },
-  prompt: `You are a travel expert. Generate a personalized travel itinerary based on the following user preferences.
-Your output MUST be a JSON object that strictly follows this schema: ${JSON.stringify(ItinerarySchema.jsonSchema)}
+  prompt: `You are a travel expert specializing in Indian travel planning. Generate a travel itinerary in STRICT JSON format only.
 
-User Preferences:
-Destination: {{destination}}
-Duration: {{duration}}
-Budget: {{budget}}
-Interests: {{interests}}
+CRITICAL: Your response must be ONLY valid JSON with no markdown, no comments, no extra text.
+
+Required JSON structure:
+{
+  "destination": "string",
+  "duration": number,
+  "budget": number,
+  "interests": ["string1", "string2"],
+  "days": [
+    {
+      "day": number,
+      "activities": [
+        {"name": "string", "description": "string"}
+      ],
+      "cost": number
+    }
+  ],
+  "notes": "string"
+}
+
+User inputs: destination={{destination}}, duration={{duration}}, budget={{budget}}, interests={{interests}}
 
 Instructions:
-1.  Parse the numeric values for duration and budget.
-2.  Create a detailed itinerary with a specific plan for each day.
-3.  For each day, provide a list of activity objects, each with a 'name' and a short 'description'.
-4.  If the user's budget seems insufficient for their request, create the best itinerary possible and add a note in the 'notes' field explaining that the budget may be tight and suggest potential adjustments.
-5.  The 'interests' field in the output should be an array of strings.
-6.  Provide the output as a single, valid JSON string. Do not include any text or markdown formatting outside of the JSON object.
+1. Parse the numeric values for duration and budget from input strings.
+2. All costs should be in Indian Rupees (₹).
+3. If budget is provided in USD ($), convert to INR using rate: $1 = ₹88.7
+4. Create detailed day-wise activities with realistic Indian pricing.
+5. Provide cost estimates per day in rupees.
+6. Include practical travel tips for Indian travelers.
+
+Return ONLY the JSON object, nothing else.
 `,
 });
 

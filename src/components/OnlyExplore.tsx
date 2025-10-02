@@ -53,6 +53,7 @@ const ItinerarySchema = z.object({
   notes: z.string().optional(),
 });
 type Itinerary = z.infer<typeof ItinerarySchema>;
+type ItineraryDay = z.infer<typeof ItineraryDaySchema>;
 
 type ChatMessage = {
   type: 'user' | 'bot';
@@ -74,7 +75,7 @@ const editFormSchema = z.object({
 const ItineraryContent = ({ itinerary }: { itinerary: Itinerary }) => {
   return (
     <Accordion type="single" collapsible className="w-full" defaultValue="day-1">
-      {itinerary.days.map((day) => (
+      {itinerary.days.map((day: ItineraryDay) => (
         <AccordionItem value={`day-${day.day}`} key={`day-${day.day}`}>
           <AccordionTrigger className="font-headline text-lg hover:no-underline text-foreground">
             Day {day.day}
@@ -90,7 +91,7 @@ const ItineraryContent = ({ itinerary }: { itinerary: Itinerary }) => {
             </ul>
             {day.cost && (
               <p className="mt-3 font-semibold text-card-foreground">
-                Estimated Cost: ₹{day.cost.toLocaleString()}
+                Estimated Cost: ₹{day.cost.toLocaleString('en-IN')}
               </p>
             )}
           </AccordionContent>
@@ -127,52 +128,265 @@ export default function OnlyExplore() {
     defaultValues: { editRequest: '' },
   });
   
+  // Helper function to extract numbers from strings and convert to rupees
+  const extractNumberFromString = (value: any): number | undefined => {
+    if (typeof value === 'number') return value;
+    if (typeof value !== 'string') return undefined;
+    
+    // Remove currency symbols and extract numbers
+    const cleanValue = value.replace(/[₹$€£,]/g, '');
+    const match = cleanValue.match(/\d+/);
+    if (!match) return undefined;
+    
+    const numericValue = parseInt(match[0], 10);
+    
+    // The data is already in rupees based on your log, so no conversion needed
+    return numericValue;
+  };
+
+  // Enhanced JSON cleaning function
+  const cleanJsonString = (jsonStr: string): string => {
+    let cleaned = jsonStr;
+    
+    // Remove any trailing commas before closing braces/brackets
+    cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
+    
+    // Remove any control characters that might break JSON
+    cleaned = cleaned.replace(/[\x00-\x1F\x7F]/g, '');
+    
+    // Fix any potential double quotes issues in descriptions
+    cleaned = cleaned.replace(/([^\\])\\"/g, '$1"');
+    
+    // Remove any trailing characters after the last closing brace
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (lastBrace !== -1) {
+      cleaned = cleaned.substring(0, lastBrace + 1);
+    }
+    
+    return cleaned;
+  };
+
+  // Alternative extraction method using regex
+  const tryAlternativeJsonExtraction = (text: string, source: 'initial' | 'edit'): boolean => {
+    try {
+      // Use regex to find JSON object more precisely
+      const jsonMatch = text.match(/\{(?:[^{}]|{(?:[^{}]|{[^{}]*})*})*\}/);
+      
+      if (jsonMatch && jsonMatch[0]) {
+        const cleanedJson = cleanJsonString(jsonMatch[0]);
+        const parsedData = JSON.parse(cleanedJson);
+        
+        // Process the successfully parsed data
+        processValidItinerary(parsedData, source);
+        return true;
+      }
+      
+      // If that fails, try to extract key sections manually
+      return tryManualExtraction(text, source);
+      
+    } catch (error) {
+      console.error('Alternative extraction failed:', error);
+      return false;
+    }
+  };
+
+  // Manual extraction as last resort
+  const tryManualExtraction = (text: string, source: 'initial' | 'edit'): boolean => {
+    try {
+      const extracted: any = { days: [] };
+      
+      // Extract destination
+      const destMatch = text.match(/"destination":\s*"([^"]+)"/);
+      if (destMatch) extracted.destination = destMatch[1];
+      
+      // Extract duration
+      const durationMatch = text.match(/"duration":\s*(\d+)/);
+      if (durationMatch) extracted.duration = parseInt(durationMatch[1]);
+      
+      // Extract budget
+      const budgetMatch = text.match(/"budget":\s*(\d+)/);
+      if (budgetMatch) extracted.budget = parseInt(budgetMatch[1]);
+      
+      // Extract interests
+      const interestsMatch = text.match(/"interests":\s*\[([^\]]+)\]/);
+      if (interestsMatch) {
+        extracted.interests = interestsMatch[1].split(',').map((s: string) => s.replace(/"/g, '').trim());
+      }
+      
+      // Create basic structure if we have essential data
+      if (extracted.destination) {
+        if (extracted.days.length === 0) {
+          extracted.days = [{
+            day: 1,
+            activities: [
+              { name: "Explore " + extracted.destination, description: "Start your adventure" }
+            ]
+          }];
+        }
+        
+        processValidItinerary(extracted, source);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  // Helper to process valid itinerary data
+  const processValidItinerary = (data: any, source: 'initial' | 'edit') => {
+    let finalData = data;
+    
+    if (data.itinerary) {
+      finalData = typeof data.itinerary === 'string' ? JSON.parse(data.itinerary) : data.itinerary;
+    } else if (data.updatedItinerary) {
+      finalData = typeof data.updatedItinerary === 'string' ? JSON.parse(data.updatedItinerary) : data.updatedItinerary;
+    }
+
+    const transformedData = {
+      destination: finalData.destination || "Unknown Destination",
+      duration: typeof finalData.duration === 'number' ? finalData.duration : (extractNumberFromString(finalData.duration) || 7),
+      budget: typeof finalData.budget === 'number' ? finalData.budget : (extractNumberFromString(finalData.budget) || 50000),
+      interests: Array.isArray(finalData.interests) 
+        ? finalData.interests 
+        : (typeof finalData.interests === 'string' 
+          ? finalData.interests.split(',').map((s: string) => s.trim()) 
+          : []),
+      days: Array.isArray(finalData.days) 
+        ? finalData.days.map((day: any) => ({
+          day: typeof day.day === 'number' ? day.day : parseInt(day.day) || 1,
+          activities: Array.isArray(day.activities) ? day.activities : [],
+          cost: day.cost ? (typeof day.cost === 'number' ? day.cost : extractNumberFromString(day.cost)) : undefined
+        }))
+        : [],
+      totalCost: finalData.totalCost 
+        ? (typeof finalData.totalCost === 'number' ? finalData.totalCost : extractNumberFromString(finalData.totalCost))
+        : undefined,
+      notes: finalData.notes || undefined
+    };
+
+    const validationResult = ItinerarySchema.safeParse(transformedData);
+
+    if (validationResult.success) {
+        const newBotMessage: ChatMessage = {
+            type: 'bot',
+            content: validationResult.data,
+            rawItinerary: JSON.stringify(validationResult.data),
+        };
+        if (source === 'initial') {
+          setChatHistory([newBotMessage]);
+        } else {
+          setChatHistory(prev => [...prev, newBotMessage]);
+        }
+        
+        toast({
+          title: 'Success!',
+          description: `Your ${finalData.destination} trip is ready!`,
+        });
+    }
+  };
+
   const parseAndSetItinerary = (text: string, source: 'initial' | 'edit') => {
     try {
-        const jsonStart = text.indexOf('{');
-        const jsonEnd = text.lastIndexOf('}');
+      console.log('Raw response text length:', text.length);
+      console.log('Raw response text:', text.substring(0, 100) + '...' + text.substring(text.length - 100)); // Show first and last 100 chars
+      
+      let parsedData: any;
+      let jsonString = text.trim();
+      
+      // Method 1: Find the JSON object boundaries more precisely
+      const firstBrace = jsonString.indexOf('{');
+      const lastBrace = jsonString.lastIndexOf('}');
+      
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        // Extract only the JSON part, ignoring any trailing content
+        jsonString = jsonString.substring(firstBrace, lastBrace + 1);
         
-        if (jsonStart === -1 || jsonEnd === -1) {
-          throw new Error("No JSON object found in the response.");
-        }
+        // Clean up any potential issues
+        jsonString = cleanJsonString(jsonString);
+        
+        console.log('Extracted JSON string length:', jsonString.length);
+        console.log('First 200 chars of JSON:', jsonString.substring(0, 200));
+        console.log('Last 200 chars of JSON:', jsonString.substring(jsonString.length - 200));
+        
+        parsedData = JSON.parse(jsonString);
+      } else {
+        throw new Error("Could not find valid JSON boundaries in the response.");
+      }
+      
+      let finalData: any;
 
-        const jsonString = text.substring(jsonStart, jsonEnd + 1);
-        const parsedData = JSON.parse(jsonString);
-        let finalData;
+      // The AI can nest the itinerary object, so we need to find it
+      if (parsedData.itinerary) {
+           finalData = typeof parsedData.itinerary === 'string' ? JSON.parse(parsedData.itinerary) : parsedData.itinerary;
+      } else if (parsedData.updatedItinerary) {
+           finalData = typeof parsedData.updatedItinerary === 'string' ? JSON.parse(parsedData.updatedItinerary) : parsedData.updatedItinerary;
+      } else {
+           // The data is already at the root level
+           finalData = parsedData;
+      }
 
-        // The AI can nest the itinerary object, so we need to find it.
-        // It can also be a stringified JSON inside a property.
-        if (parsedData.itinerary) {
-             finalData = typeof parsedData.itinerary === 'string' ? JSON.parse(parsedData.itinerary) : parsedData.itinerary;
-        } else if (parsedData.updatedItinerary) {
-             finalData = typeof parsedData.updatedItinerary === 'string' ? JSON.parse(parsedData.updatedItinerary) : parsedData.updatedItinerary;
-        } else {
-             finalData = parsedData;
-        }
+      // Transform the data to match the expected schema
+      const transformedData = {
+        destination: finalData.destination || "Unknown Destination",
+        duration: typeof finalData.duration === 'number' ? finalData.duration : (extractNumberFromString(finalData.duration) || 7),
+        budget: typeof finalData.budget === 'number' ? finalData.budget : (extractNumberFromString(finalData.budget) || 50000),
+        interests: Array.isArray(finalData.interests) 
+          ? finalData.interests 
+          : (typeof finalData.interests === 'string' 
+            ? finalData.interests.split(',').map((s: string) => s.trim()) 
+            : []),
+        days: Array.isArray(finalData.days) 
+          ? finalData.days.map((day: any) => ({
+            day: typeof day.day === 'number' ? day.day : parseInt(day.day) || 1,
+            activities: Array.isArray(day.activities) ? day.activities : [],
+            cost: day.cost ? (typeof day.cost === 'number' ? day.cost : extractNumberFromString(day.cost)) : undefined
+          }))
+          : [],
+        totalCost: finalData.totalCost 
+          ? (typeof finalData.totalCost === 'number' ? finalData.totalCost : extractNumberFromString(finalData.totalCost))
+          : undefined,
+        notes: finalData.notes || undefined
+      };
 
-        const validationResult = ItinerarySchema.safeParse(finalData);
+      console.log('Transformed data:', transformedData);
 
-        if (validationResult.success) {
-            const newBotMessage: ChatMessage = {
-                type: 'bot',
-                content: validationResult.data,
-                rawItinerary: JSON.stringify(validationResult.data),
-            };
-            if (source === 'initial') {
-              setChatHistory([newBotMessage]);
-            } else {
-              setChatHistory(prev => [...prev, newBotMessage]);
-            }
-        } else {
-            console.error('Itinerary validation error:', validationResult.error);
-            toast({
-              variant: 'destructive',
-              title: 'Could not understand the itinerary.',
-              description: 'The AI returned a plan in an unexpected format. Please try again.',
-            });
-        }
+      const validationResult = ItinerarySchema.safeParse(transformedData);
+
+      if (validationResult.success) {
+          const newBotMessage: ChatMessage = {
+              type: 'bot',
+              content: validationResult.data,
+              rawItinerary: JSON.stringify(validationResult.data),
+          };
+          if (source === 'initial') {
+            setChatHistory([newBotMessage]);
+          } else {
+            setChatHistory(prev => [...prev, newBotMessage]);
+          }
+          
+          toast({
+            title: 'Itinerary Updated!',
+            description: `Your ${finalData.destination} trip has been updated!`,
+          });
+      } else {
+          console.error('Itinerary validation error:', validationResult.error);
+          toast({
+            variant: 'destructive',
+            title: 'Could not understand the itinerary.',
+            description: 'The AI returned a plan in an unexpected format. Please try again.',
+          });
+      }
     } catch(e) {
         console.error('Failed to parse itinerary JSON:', e);
+        console.error('Error details:', e instanceof Error ? e.message : 'Unknown error');
+        
+        // Try alternative parsing methods as backup
+        if (tryAlternativeJsonExtraction(text, source)) {
+          return; // Success with alternative method
+        }
+        
          toast({
             variant: 'destructive',
             title: 'Could not read the itinerary.',
@@ -185,7 +399,11 @@ export default function OnlyExplore() {
     setIsLoading(true);
     setChatHistory([]);
     try {
+      console.log('Sending request with values:', values); // Debug log
+      
       const result = await generateTravelItinerary(values);
+      console.log('Raw AI result:', result); // Debug log
+      
       const itineraryString = result.itinerary;
       if (itineraryString) {
         parseAndSetItinerary(itineraryString, 'initial');
@@ -197,7 +415,7 @@ export default function OnlyExplore() {
       toast({
         variant: 'destructive',
         title: 'Oh no! Something went wrong.',
-        description: 'We couldn\'t generate your itinerary. Please try again.',
+        description: error instanceof Error ? error.message : 'We couldn\'t generate your itinerary. Please try again.',
       });
     } finally {
       setIsLoading(false);
@@ -247,7 +465,7 @@ export default function OnlyExplore() {
       if (!itinerary) return;
 
       let formattedText = `Your Trip to ${itinerary.destination}\n\n`;
-      itinerary.days.forEach(day => {
+      itinerary.days.forEach((day: ItineraryDay) => {
           formattedText += `Day ${day.day}\n`;
           day.activities.forEach(activity => {
               formattedText += `- ${activity.name}`;
@@ -343,7 +561,7 @@ export default function OnlyExplore() {
       doc.text(`Your Trip to ${itinerary.destination}`, margin, yPos);
       yPos += 12;
       
-      itinerary.days.forEach(day => {
+      itinerary.days.forEach((day: ItineraryDay) => {
         if (yPos > 270) { 
             doc.addPage();
             yPos = 20;
@@ -612,7 +830,7 @@ export default function OnlyExplore() {
                         <FormControl>
                             <div className="relative">
                             <Wallet className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                            <Input placeholder="e.g., ₹100000" className="pl-10" {...field} />
+                            <Input placeholder="e.g., ₹50000" className="pl-10" {...field} />
                             </div>
                         </FormControl>
                         <FormMessage />

@@ -54,7 +54,7 @@ const prompt = ai.definePrompt({
       schema: EditItineraryOutputSchema,
       format: 'json',
   },
-  prompt: `You are a travel expert. The user has an existing itinerary and wants to make a change.
+  prompt: `You are a travel expert specializing in Indian travel planning. The user has an existing itinerary and wants to make a change.
 Your output MUST be a complete, updated JSON object that strictly follows this schema: ${JSON.stringify(ItinerarySchema.jsonSchema)}
 
 Current Itinerary (as a JSON string):
@@ -64,13 +64,14 @@ User's Edit Request:
 "{{editRequest}}"
 
 Instructions:
-1.  Read the current itinerary and the user's request carefully.
-2.  Modify the itinerary to reflect the requested changes. This may involve adding, removing, or changing days, activities, or destinations.
-3.  For each day, the 'activities' field must be an array of objects, where each object has a 'name' and an optional 'description'.
-4.  The 'interests' field must be an array of strings.
-5.  Recalculate costs if necessary.
-6.  Update the 'notes' field if the edit has implications for the budget or schedule.
-7.  Return the complete, new itinerary as a single, valid JSON string. Do not include any text or markdown formatting outside of the JSON object.
+1. Read the current itinerary and the user's request carefully.
+2. Modify the itinerary to reflect the requested changes. This may involve adding, removing, or changing days, activities, or destinations.
+3. For each day, the 'activities' field must be an array of objects, where each object has a 'name' and an optional 'description'.
+4. The 'interests' field must be an array of strings.
+5. All costs should be in Indian Rupees (₹). If any costs are in USD ($), convert to INR using rate: $1 = ₹88.7
+6. Recalculate costs if necessary with realistic Indian pricing.
+7. Update the 'notes' field if the edit has implications for the budget or schedule.
+8. Return the complete, new itinerary as a single, valid JSON string. Do not include any text or markdown formatting outside of the JSON object.
   `,
 });
 
