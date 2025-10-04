@@ -55,7 +55,7 @@ const prompt = ai.definePrompt({
       format: 'json',
   },
   prompt: `You are a travel expert specializing in Indian travel planning. The user has an existing itinerary and wants to make a change.
-Your output MUST be a complete, updated JSON object that strictly follows this schema: ${JSON.stringify(ItinerarySchema.jsonSchema)}
+Your output MUST be a complete, updated JSON object that strictly follows this schema: ${JSON.stringify(ItinerarySchema._def.shape())}
 
 Current Itinerary (as a JSON string):
 {{itinerary}}

@@ -31,6 +31,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { formatCurrencyDisplay, parseCurrencyValue } from '@/lib/currency';
 
 const ActivitySchema = z.object({
   name: z.string(),
@@ -91,7 +92,7 @@ const ItineraryContent = ({ itinerary }: { itinerary: Itinerary }) => {
             </ul>
             {day.cost && (
               <p className="mt-3 font-semibold text-card-foreground">
-                Estimated Cost: ₹{day.cost.toLocaleString('en-IN')}
+                Estimated Cost: {formatCurrencyDisplay(day.cost)}
               </p>
             )}
           </AccordionContent>
@@ -130,18 +131,7 @@ export default function OnlyExplore() {
   
   // Helper function to extract numbers from strings and convert to rupees
   const extractNumberFromString = (value: any): number | undefined => {
-    if (typeof value === 'number') return value;
-    if (typeof value !== 'string') return undefined;
-    
-    // Remove currency symbols and extract numbers
-    const cleanValue = value.replace(/[₹$€£,]/g, '');
-    const match = cleanValue.match(/\d+/);
-    if (!match) return undefined;
-    
-    const numericValue = parseInt(match[0], 10);
-    
-    // The data is already in rupees based on your log, so no conversion needed
-    return numericValue;
+    return parseCurrencyValue(value);
   };
 
   // Enhanced JSON cleaning function
@@ -475,7 +465,7 @@ export default function OnlyExplore() {
               formattedText += `\n`;
           });
           if (day.cost) {
-              formattedText += `Estimated Cost: ₹${day.cost.toLocaleString()}\n`;
+              formattedText += `Estimated Cost: ${formatCurrencyDisplay(day.cost)}\n`;
           }
           formattedText += `\n`;
       });
@@ -507,7 +497,7 @@ export default function OnlyExplore() {
             formattedText += `- ${activity.name}${activity.description ? `: ${activity.description}` : ''}\n`;
         });
         if (day.cost) {
-            formattedText += `Estimated Cost: ₹${day.cost.toLocaleString()}\n`;
+            formattedText += `Estimated Cost: ${formatCurrencyDisplay(day.cost)}\n`;
         }
         formattedText += `\n`;
     });
@@ -567,10 +557,10 @@ export default function OnlyExplore() {
             yPos = 20;
         }
         doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
+        doc.setFont('helvetica', 'bold');
         doc.text(`Day ${day.day}`, margin, yPos);
         yPos += 7;
-        doc.setFont(undefined, 'normal');
+        doc.setFont('helvetica', 'normal');
 
         doc.setFontSize(11);
         doc.setTextColor(50);
@@ -587,9 +577,9 @@ export default function OnlyExplore() {
         
         if (day.cost) {
             yPos += 2;
-            doc.setFont(undefined, 'bold');
-            doc.text(`Estimated Cost: ₹${day.cost.toLocaleString()}`, margin + 4, yPos);
-            doc.setFont(undefined, 'normal');
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Estimated Cost: ${formatCurrencyDisplay(day.cost)}`, margin + 4, yPos);
+            doc.setFont('helvetica', 'normal');
             yPos += 5;
         }
 
@@ -603,10 +593,10 @@ export default function OnlyExplore() {
         }
         doc.setFontSize(12);
         doc.setTextColor(0);
-        doc.setFont(undefined, 'bold');
+        doc.setFont('helvetica', 'bold');
         doc.text('Notes from your Planner', margin, yPos);
         yPos += 7;
-        doc.setFont(undefined, 'normal');
+        doc.setFont('helvetica', 'normal');
         doc.setTextColor(80);
         const notesText = doc.splitTextToSize(itinerary.notes, contentWidth);
         doc.text(notesText, margin, yPos);
@@ -647,13 +637,33 @@ export default function OnlyExplore() {
   );
 
   if (isLoading) {
-    return <ItineraryLoader />;
+    return (
+      <div className="fullscreen-content">
+        <div 
+          className="fullscreen-bg"
+          style={{
+            backgroundImage: 'url(/bg_image2.png)'
+          }}
+        />
+        <div className="fullscreen-overlay bg-black/40 flex items-center justify-center">
+          <ItineraryLoader />
+        </div>
+      </div>
+    );
   }
 
   if (chatHistory.length > 0) {
     const { itinerary } = getLatestItinerary();
     return (
-      <Card className="w-full max-w-4xl shadow-2xl shadow-primary/10 flex flex-col h-[90vh]">
+      <div className="fullscreen-content">
+        <div 
+          className="fullscreen-bg"
+          style={{
+            backgroundImage: 'url(/bg_image2.png)'
+          }}
+        />
+        <div className="fullscreen-overlay bg-black/40 flex items-center justify-center p-4">
+          <Card className="w-full max-w-4xl shadow-2xl shadow-primary/10 flex flex-col h-[90vh] bg-white/95 overflow-hidden">
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
@@ -772,20 +782,30 @@ export default function OnlyExplore() {
             </form>
           </Form>
         </CardFooter>
-      </Card>
+          </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card className="w-full max-w-2xl shadow-2xl shadow-primary/10">
-      <CardHeader className="text-center">
-        <div className="mx-auto bg-primary/20 p-3 rounded-full w-fit mb-4">
-            <Plane className="h-8 w-8 text-primary-foreground" />
-        </div>
-        <CardTitle className="font-headline text-3xl">Welcome to Only Explore</CardTitle>
-        <CardDescription>Your AI-powered travel planner. Let's dream up your next adventure together.</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div className="fullscreen-content">
+      <div 
+        className="fullscreen-bg"
+        style={{
+          backgroundImage: 'url(/bg_image2.png)'
+        }}
+      />
+      <div className="fullscreen-overlay bg-black/40 flex items-center justify-center p-4">
+        <Card className="w-full max-w-2xl shadow-2xl shadow-primary/10 bg-white/95">
+          <CardHeader className="text-center">
+            <div className="mx-auto bg-primary/20 p-3 rounded-full w-fit mb-4">
+                <Plane className="h-8 w-8 text-primary-foreground" />
+            </div>
+            <CardTitle className="font-headline text-3xl">Welcome to Only Explore</CardTitle>
+            <CardDescription>Your AI-powered travel planner. Let's dream up your next adventure together.</CardDescription>
+          </CardHeader>
+          <CardContent>
             <Form {...plannerForm}>
             <form onSubmit={plannerForm.handleSubmit(onPlannerSubmit)} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -860,7 +880,9 @@ export default function OnlyExplore() {
                 </Button>
             </form>
             </Form>
-      </CardContent>
-    </Card>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
