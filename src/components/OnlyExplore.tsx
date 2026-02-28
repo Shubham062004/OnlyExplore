@@ -385,27 +385,41 @@ export default function OnlyExplore() {
     }
   }
 
-  async function onPlannerSubmit(values: z.infer<typeof plannerFormSchema>) {
+  async function onPlannerSubmit(values: any) {
     setIsLoading(true);
     setChatHistory([]);
+
     try {
-      console.log('Sending request with values:', values); // Debug log
-      
+      console.log("Sending request with values:", values);
+
       const result = await generateTravelItinerary(values);
-      console.log('Raw AI result:', result); // Debug log
-      
-      const itineraryString = result.itinerary;
-      if (itineraryString) {
-        parseAndSetItinerary(itineraryString, 'initial');
-      } else {
-        throw new Error("Received empty itinerary from AI.");
+
+      console.log("Raw AI result:", result);
+
+      if (!result) {
+        throw new Error("AI returned empty result.");
       }
-    } catch (error) {
-      console.error('Error generating itinerary:', error);
+
+      const newBotMessage: ChatMessage = {
+        type: "bot",
+        content: result, // <-- DIRECT OBJECT
+        rawItinerary: JSON.stringify(result),
+      };
+
+      setChatHistory([newBotMessage]);
+
       toast({
-        variant: 'destructive',
-        title: 'Oh no! Something went wrong.',
-        description: error instanceof Error ? error.message : 'We couldn\'t generate your itinerary. Please try again.',
+        title: "Success!",
+        description: result?.destination ? `Your ${result.destination} trip is ready!` : "Your trip is ready!",
+      });
+
+    } catch (error) {
+      console.error("Error generating itinerary:", error);
+
+      toast({
+        variant: "destructive",
+        title: "Something went wrong.",
+        description: "Could not generate itinerary.",
       });
     } finally {
       setIsLoading(false);
