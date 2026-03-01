@@ -1,7 +1,9 @@
-import type {Metadata} from 'next';
+import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { ClientOnly } from '@/components/ClientOnly';
+
+import { Providers } from '@/components/Providers';
 
 export const metadata: Metadata = {
   title: 'Only Explore - Your AI Travel Planner',
@@ -23,10 +25,12 @@ export default function RootLayout({
       <body
       // className="font-body antialiased"
       >
-        <ClientOnly>
-          {children}
-          <Toaster />
-        </ClientOnly>
+        <Providers>
+          <ClientOnly>
+            {children}
+            <Toaster />
+          </ClientOnly>
+        </Providers>
       </body>
     </html>
   );
