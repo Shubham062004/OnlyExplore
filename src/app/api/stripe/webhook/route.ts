@@ -1,0 +1,76 @@
+import { NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { stripe } from "@/lib/stripe";
+import { connectDB } from "@/lib/mongodb";
+import User from "@/models/User";
+import Stripe from "stripe";
+
+export async function POST(req: Request) {
+  const body = await req.text();
+  const headersList = await headers();
+  const signature = headersList.get("Stripe-Signature") || "";
+
+  let event: Stripe.Event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET || ""
+    );
+  } catch (error: any) {
+    console.error("Webhook Verification Error:", error.message);
+    return NextResponse.json({ error: `Webhook Error: ${error.message}` }, { status: 400 });
+  }
+
+  await connectDB();
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
+        const userId = session.metadata?.userId;
+
+        if (userId) {
+          await User.findByIdAndUpdate(userId, {
+            stripeSubscriptionId: subscription.id,
+            stripeCustomerId: session.customer as string,
+            subscriptionStatus: subscription.status,
+            plan: "pro",
+          });
+        }
+        break;
+      }
+      case "customer.subscription.updated": {
+        const subscription = event.data.object as Stripe.Subscription;
+        await User.findOneAndUpdate(
+          { stripeSubscriptionId: subscription.id },
+          { 
+            subscriptionStatus: subscription.status,
+            plan: subscription.status === "active" ? "pro" : "free"
+          }
+        );
+        break;
+      }
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object as Stripe.Subscription;
+        await User.findOneAndUpdate(
+          { stripeSubscriptionId: subscription.id },
+          { 
+            subscriptionStatus: "canceled",
+            plan: "free"
+          }
+        );
+        break;
+      }
+      default:
+        console.log(`Unhandled event type: ${event.type}`);
+    }
+  } catch (error: any) {
+    console.error(`Error processing webhook event ${event.type}:`, error);
+    return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
+  }
+
+  return NextResponse.json({ received: true }, { status: 200 });
+}
