@@ -4,13 +4,22 @@ import type { NextRequest } from "next/server";
 
 export async function middleware(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const { pathname } = req.nextUrl;
+
+  const isApiRoute = pathname.startsWith("/api/");
 
   if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (isApiRoute) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    return NextResponse.redirect(new URL("/api/auth/signin", req.url));
   }
 
   if (token.plan !== "pro") {
-    return NextResponse.json({ error: "Upgrade required" }, { status: 403 });
+    if (isApiRoute) {
+      return NextResponse.json({ error: "Upgrade required" }, { status: 403 });
+    }
+    return NextResponse.redirect(new URL("/profile", req.url));
   }
 
   return NextResponse.next();
@@ -18,6 +27,9 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
+    "/dashboard/:path*",
+    "/premium/:path*",
+    "/pro/:path*",
     "/api/premium/:path*",
     "/api/pro/:path*",
   ],

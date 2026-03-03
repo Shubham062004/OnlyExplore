@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { stripe } from "@/lib/stripe";
+import Stripe from "stripe";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
-import Stripe from "stripe";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+  apiVersion: "2023-10-16" as any,
+  typescript: true,
+});
 
 export async function POST(req: Request) {
   const body = await req.text();
@@ -19,7 +23,7 @@ export async function POST(req: Request) {
       process.env.STRIPE_WEBHOOK_SECRET || ""
     );
   } catch (error: any) {
-    console.error("Webhook Verification Error:", error.message);
+    console.error("Webhook signature verification failed:", error.message);
     return NextResponse.json({ error: `Webhook Error: ${error.message}` }, { status: 400 });
   }
 
@@ -29,14 +33,16 @@ export async function POST(req: Request) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
+        const subscription = await stripe.subscriptions.retrieve(
+          session.subscription as string
+        );
         const userId = session.metadata?.userId;
 
         if (userId) {
           await User.findByIdAndUpdate(userId, {
-            stripeSubscriptionId: subscription.id,
             stripeCustomerId: session.customer as string,
-            subscriptionStatus: subscription.status,
+            stripeSubscriptionId: subscription.id,
+            subscriptionStatus: "active",
             plan: "pro",
           });
         }
@@ -46,9 +52,9 @@ export async function POST(req: Request) {
         const subscription = event.data.object as Stripe.Subscription;
         await User.findOneAndUpdate(
           { stripeSubscriptionId: subscription.id },
-          { 
+          {
             subscriptionStatus: subscription.status,
-            plan: subscription.status === "active" ? "pro" : "free"
+            plan: subscription.status === "active" ? "pro" : "free",
           }
         );
         break;
@@ -57,9 +63,9 @@ export async function POST(req: Request) {
         const subscription = event.data.object as Stripe.Subscription;
         await User.findOneAndUpdate(
           { stripeSubscriptionId: subscription.id },
-          { 
+          {
             subscriptionStatus: "canceled",
-            plan: "free"
+            plan: "free",
           }
         );
         break;
@@ -68,7 +74,7 @@ export async function POST(req: Request) {
         console.log(`Unhandled event type: ${event.type}`);
     }
   } catch (error: any) {
-    console.error(`Error processing webhook event ${event.type}:`, error);
+    console.error(`Error handling webhook event ${event.type}:`, error);
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
   }
 

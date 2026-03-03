@@ -1,11 +1,16 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 
 export const authOptions: NextAuthOptions = {
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -48,8 +53,11 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role;
+        token.role = (user as any).role || "free";
         token.plan = (user as any).plan || "free";
+        if (user.image) {
+          token.image = user.image;
+        }
       }
       return token;
     },
@@ -58,6 +66,9 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).id = token.id as string;
         (session.user as any).role = token.role as string;
         (session.user as any).plan = token.plan as string;
+        if (token.image) {
+          (session.user as any).image = token.image as string;
+        }
       }
       return session;
     }

@@ -9,7 +9,7 @@ export default function ProfilePage() {
     const [loading, setLoading] = useState(false);
     const router = useRouter();
 
-    if (!session) {
+    if (!session || !session.user) {
         return <div className="p-8 text-white">Please sign in to view your profile.</div>;
     }
 
@@ -30,12 +30,16 @@ export default function ProfilePage() {
         }
     };
 
-    const handleCancel = async () => {
+    const handleBillingPortal = async () => {
         try {
             setLoading(true);
-            await fetch("/api/stripe/cancel", { method: "POST" });
-            await update();
-            router.refresh();
+            const res = await fetch("/api/stripe/customer-portal", { method: "POST" });
+            const data = await res.json();
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                console.error("No portal url returned", data);
+            }
         } catch (error) {
             console.error(error);
         } finally {
@@ -86,11 +90,11 @@ export default function ProfilePage() {
                     <div>
                         <p className="text-zinc-400 mb-4 text-sm">You are currently subscribed to the Pro plan. Thank you for your support!</p>
                         <button
-                            onClick={handleCancel}
+                            onClick={handleBillingPortal}
                             disabled={loading}
-                            className="px-6 py-2.5 bg-zinc-800 hover:bg-red-600/90 text-zinc-300 hover:text-white border border-zinc-700 hover:border-red-600 text-sm font-semibold rounded-md transition-all disabled:opacity-50"
+                            className="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 text-sm font-semibold rounded-md transition-all disabled:opacity-50"
                         >
-                            {loading ? "Processing..." : "Cancel Subscription"}
+                            {loading ? "Processing..." : "Manage Billing & Cancel"}
                         </button>
                     </div>
                 )}
