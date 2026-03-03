@@ -115,6 +115,7 @@ export default function OnlyExplore() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const { data: session } = useSession();
   const [isLoading, setIsLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const { toast } = useToast();
 
@@ -435,6 +436,7 @@ export default function OnlyExplore() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ chatId: chatData._id, role: "assistant", content: JSON.stringify(result) })
             });
+            setRefreshKey(prev => prev + 1);
           }
         } catch (e) { console.error("Could not save to db", e); }
       }
@@ -483,6 +485,7 @@ export default function OnlyExplore() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ chatId: currentChatId, role: "assistant", content: result.updatedItinerary })
             });
+            setRefreshKey(prev => prev + 1);
           } catch (e) { console.error("Could not save edit to db", e); }
         }
 
@@ -977,7 +980,7 @@ export default function OnlyExplore() {
 
   return (
     <div className="flex w-full h-screen overflow-hidden bg-background">
-      <Sidebar onSelectChat={handleSelectChat} onNewChat={handleNewChat} />
+      <Sidebar onSelectChat={handleSelectChat} onNewChat={handleNewChat} refreshKey={refreshKey} />
       <div className="flex-1 relative overflow-auto">
         {renderContent()}
       </div>
