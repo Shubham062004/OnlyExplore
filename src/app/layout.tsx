@@ -6,7 +6,7 @@ import { ClientOnly } from '@/components/ClientOnly';
 import { Providers } from '@/components/Providers';
 
 export const metadata: Metadata = {
-  title: 'Only Explore - Your AI Travel Planner',
+  title: 'Only Explore',
   description: 'Create personalized travel itineraries with our chat-based AI.',
 };
 
