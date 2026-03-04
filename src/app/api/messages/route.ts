@@ -4,21 +4,27 @@ import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
 import Chat from "@/models/Chat";
 import Message from "@/models/Message";
+import { metrics } from "@/lib/metrics";
+import { logger } from "@/lib/logger";
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user || !(session.user as any).id) {
+      metrics.trackApiDuration("/api/messages (POST)", Date.now() - startTime);
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { chatId, role, content } = await req.json();
 
     if (!chatId || !role || !content) {
+      metrics.trackApiDuration("/api/messages (POST)", Date.now() - startTime);
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     if (role !== "user" && role !== "assistant") {
+      metrics.trackApiDuration("/api/messages (POST)", Date.now() - startTime);
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
     }
 
@@ -26,6 +32,7 @@ export async function POST(req: Request) {
 
     const chat = await Chat.findOne({ _id: chatId, userId: (session.user as any).id }).lean();
     if (!chat) {
+      metrics.trackApiDuration("/api/messages (POST)", Date.now() - startTime);
       return NextResponse.json({ error: "Chat not found or unauthorized" }, { status: 404 });
     }
 
@@ -35,16 +42,21 @@ export async function POST(req: Request) {
       content,
     });
 
+    metrics.trackApiDuration("/api/messages (POST)", Date.now() - startTime);
     return NextResponse.json(newMessage, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
+    logger.error("Error in /api/messages POST", { error: error.message });
+    metrics.trackApiDuration("/api/messages (POST)", Date.now() - startTime);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function GET(req: Request) {
+  const startTime = Date.now();
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user || !(session.user as any).id) {
+      metrics.trackApiDuration("/api/messages (GET)", Date.now() - startTime);
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -52,6 +64,7 @@ export async function GET(req: Request) {
     const chatId = searchParams.get("chatId");
 
     if (!chatId) {
+      metrics.trackApiDuration("/api/messages (GET)", Date.now() - startTime);
       return NextResponse.json({ error: "chatId is required" }, { status: 400 });
     }
 
@@ -59,13 +72,17 @@ export async function GET(req: Request) {
 
     const chat = await Chat.findOne({ _id: chatId, userId: (session.user as any).id }).lean();
     if (!chat) {
+      metrics.trackApiDuration("/api/messages (GET)", Date.now() - startTime);
       return NextResponse.json({ error: "Chat not found or unauthorized" }, { status: 404 });
     }
 
     const messages = await Message.find({ chatId }).sort({ createdAt: 1 }).lean();
 
+    metrics.trackApiDuration("/api/messages (GET)", Date.now() - startTime);
     return NextResponse.json(messages, { status: 200 });
-  } catch (error) {
+  } catch (error: any) {
+    logger.error("Error in /api/messages GET", { error: error.message });
+    metrics.trackApiDuration("/api/messages (GET)", Date.now() - startTime);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

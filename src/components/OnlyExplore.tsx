@@ -34,6 +34,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { formatCurrencyDisplay, parseCurrencyValue } from '@/lib/currency';
 import { Sidebar } from './Sidebar';
 import { useSession } from 'next-auth/react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 const ActivitySchema = z.object({
   name: z.string(),
@@ -110,14 +112,33 @@ const ItineraryContent = ({ itinerary }: { itinerary: Itinerary }) => {
   );
 };
 
-export default function OnlyExplore() {
+export default function OnlyExplore({ initialChatId }: { initialChatId?: string }) {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const { toast } = useToast();
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (searchParams.get('verified') === 'true') {
+      toast({ title: 'Success', description: 'Email verified successfully. You can now log in.' });
+      router.replace('/');
+    }
+  }, [searchParams, router, toast]);
+
+  // Load initial chat if it exists
+  useEffect(() => {
+    if (status === 'loading') return;
+
+    if (initialChatId && initialChatId !== currentChatId && status === 'authenticated') {
+      handleSelectChat(initialChatId, false);
+    }
+  }, [initialChatId, status]);
 
   const plannerForm = useForm<z.infer<typeof plannerFormSchema>>({
     resolver: zodResolver(plannerFormSchema),
@@ -437,6 +458,7 @@ export default function OnlyExplore() {
               body: JSON.stringify({ chatId: chatData._id, role: "assistant", content: JSON.stringify(result) })
             });
             setRefreshKey(prev => prev + 1);
+            router.push(`/${chatData._id}`);
           }
         } catch (e) { console.error("Could not save to db", e); }
       }
@@ -701,9 +723,12 @@ export default function OnlyExplore() {
     </Card>
   );
 
-  const handleSelectChat = async (chatId: string) => {
+  const handleSelectChat = async (chatId: string, navigate = true) => {
     setIsLoading(true);
     setCurrentChatId(chatId);
+    if (navigate) {
+      router.push(`/${chatId}`);
+    }
     try {
       const res = await fetch(`/api/messages?chatId=${chatId}`);
       if (!res.ok) throw new Error("Failed to fetch");
@@ -739,6 +764,7 @@ export default function OnlyExplore() {
   const handleNewChat = () => {
     setChatHistory([]);
     setCurrentChatId(null);
+    router.push('/');
   };
 
   const renderContent = () => {

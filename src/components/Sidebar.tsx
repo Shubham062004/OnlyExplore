@@ -3,6 +3,7 @@ import { useSession, signOut } from "next-auth/react";
 import { MessageSquare, Plus, LogOut, Menu, X, Sparkles } from "lucide-react";
 import { AuthDialog } from "./AuthDialog";
 import { Button } from "./ui/button";
+import { ProfileModal } from "./ProfileModal";
 
 interface Chat {
     _id: string;
@@ -77,21 +78,29 @@ export function Sidebar({ onSelectChat, onNewChat, refreshKey }: { onSelectChat:
                 {session && (
                     <div className="p-4 border-t border-border/50 shrink-0 space-y-4 backdrop-blur-md">
                         {isPro ? (
-                            <div className="p-3 rounded-xl border border-amber-500/50 bg-gradient-to-br from-amber-500/10 to-orange-500/5 relative overflow-hidden group">
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
-                                <div className="flex items-center gap-2">
-                                    <div className="h-6 w-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-[0_0_10px_rgba(251,191,36,0.5)]">
-                                        <Sparkles className="h-3 w-3 text-white" />
+                            <ProfileModal>
+                                <button className="w-full text-left p-3 rounded-xl border border-amber-500/50 bg-gradient-to-br from-amber-500/10 to-orange-500/5 relative overflow-hidden group hover:ring-2 ring-amber-500/50 transition-all cursor-pointer">
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-6 w-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-[0_0_10px_rgba(251,191,36,0.5)]">
+                                            <Sparkles className="h-3 w-3 text-white" />
+                                        </div>
+                                        <span className="text-sm font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">Premium Status</span>
                                     </div>
-                                    <span className="text-sm font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">Premium Status</span>
-                                </div>
-                            </div>
+                                </button>
+                            </ProfileModal>
                         ) : (
                             <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 flex flex-col gap-2">
                                 <p className="text-xs text-muted-foreground font-medium text-center">Unlock full potential</p>
                                 <Button
                                     className="w-full h-8 text-xs bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white border-0 shadow-lg shadow-purple-500/25 transition-all"
-                                    onClick={() => window.location.href = '/profile'}
+                                    onClick={() => {
+                                        fetch("/api/stripe/checkout", { method: "POST" })
+                                            .then((res) => res.json())
+                                            .then((data) => {
+                                                if (data.url) window.location.href = data.url;
+                                            });
+                                    }}
                                 >
                                     Upgrade to Pro
                                 </Button>
@@ -99,7 +108,18 @@ export function Sidebar({ onSelectChat, onNewChat, refreshKey }: { onSelectChat:
                         )}
 
                         <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium truncate pr-2">{session.user?.name || session.user?.email}</span>
+                            <ProfileModal>
+                                <button className="flex items-center gap-2 text-sm font-medium truncate hover:underline cursor-pointer text-left focus:outline-none max-w-[80%]">
+                                    {session.user?.image ? (
+                                        <img src={session.user.image} alt="Avatar" className="w-8 h-8 rounded-full border border-border shrink-0 object-cover" />
+                                    ) : (
+                                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                                            <span className="text-primary text-xs font-bold">{(session.user?.name || session.user?.email || "?").charAt(0).toUpperCase()}</span>
+                                        </div>
+                                    )}
+                                    <span className="truncate">{session.user?.name || session.user?.email}</span>
+                                </button>
+                            </ProfileModal>
                             <Button variant="ghost" size="icon" onClick={() => signOut()} className="shrink-0 hover:bg-red-500/10 hover:text-red-500 transition-colors">
                                 <LogOut className="w-4 h-4" />
                             </Button>

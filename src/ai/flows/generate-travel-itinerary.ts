@@ -5,6 +5,8 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { metrics } from '@/lib/metrics';
+import { logger } from '@/lib/logger';
 
 const GenerateTravelItineraryInputSchema = z.object({
   destination: z.string().describe('The desired travel destination.'),
@@ -80,13 +82,21 @@ const generateTravelItineraryFlow = ai.defineFlow(
     outputSchema: ItinerarySchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
+    const startTime = Date.now();
+    try {
+      const { output } = await prompt(input);
 
-    if (!output) {
-      throw new Error('AI failed to generate itinerary.');
+      if (!output) {
+        throw new Error('AI failed to generate itinerary.');
+      }
+
+      metrics.trackAiGeneration('generateTravelItinerary', Date.now() - startTime, true);
+      return output;
+    } catch (error: any) {
+      logger.error('AI Generation Error', { error: error.message, flow: 'generateTravelItinerary' });
+      metrics.trackAiGeneration('generateTravelItinerary', Date.now() - startTime, false);
+      throw error;
     }
-
-    return output;
   }
 );
 

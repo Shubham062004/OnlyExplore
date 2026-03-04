@@ -10,6 +10,8 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { metrics } from '@/lib/metrics';
+import { logger } from '@/lib/logger';
 
 const ActivitySchema = z.object({
   name: z.string().describe('A short, catchy name for the activity.'),
@@ -82,7 +84,15 @@ const editItineraryFlow = ai.defineFlow(
     outputSchema: EditItineraryOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    const startTime = Date.now();
+    try {
+      const {output} = await prompt(input);
+      metrics.trackAiGeneration('editTravelItinerary', Date.now() - startTime, true);
+      return output!;
+    } catch (error: any) {
+      logger.error('AI Generation Error', { error: error.message, flow: 'editTravelItinerary' });
+      metrics.trackAiGeneration('editTravelItinerary', Date.now() - startTime, false);
+      throw error;
+    }
   }
 );
