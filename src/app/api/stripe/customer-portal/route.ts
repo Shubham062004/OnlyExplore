@@ -16,19 +16,30 @@ export async function POST(req: Request) {
     await connectDB();
     const user = await User.findOne({ email: session.user.email });
 
-    if (!user || !user.stripeCustomerId) {
-      return NextResponse.json({ error: "Stripe customer not found" }, { status: 404 });
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Create the billing portal session
+    if (!user.stripeCustomerId) {
+      return NextResponse.json(
+        { error: "Stripe customer ID not found" },
+        { status: 400 }
+      );
+    }
+
+    const returnUrl = `${process.env.NEXTAUTH_URL}/profile`;
+
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: user.stripeCustomerId,
-      return_url: `${process.env.NEXTAUTH_URL}/profile`,
+      return_url: returnUrl,
     });
 
     return NextResponse.json({ url: portalSession.url });
   } catch (error: any) {
     console.error("Stripe Customer Portal Error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
