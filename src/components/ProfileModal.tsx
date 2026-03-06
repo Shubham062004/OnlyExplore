@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, ExternalLink, Download, CreditCard, FileText } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export function ProfileModal({ children }: { children: React.ReactNode }) {
     const { data: session, update } = useSession();
@@ -45,6 +46,67 @@ export function ProfileModal({ children }: { children: React.ReactNode }) {
     // 2FA states
     const [email2FA, setEmail2FA] = useState(initialTwoFactorMethods.includes("email"));
     const [phone2FA, setPhone2FA] = useState(initialTwoFactorMethods.includes("phone"));
+
+    // Billing States
+    const [invoices, setInvoices] = useState<any[]>([]);
+    const [nextBillingDate, setNextBillingDate] = useState<number | null>(null);
+    const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
+    const [showBillingHistory, setShowBillingHistory] = useState(false);
+    const [isManagingBilling, setIsManagingBilling] = useState(false);
+    const subscriptionStatus = (session?.user as any)?.subscriptionStatus || "inactive";
+
+    const fetchInvoices = async () => {
+        setIsLoadingInvoices(true);
+        try {
+            const res = await fetch("/api/stripe/invoices");
+            const data = await res.json();
+            if (data.invoices) {
+                setInvoices(data.invoices);
+            }
+            if (data.nextBillingDate) {
+                setNextBillingDate(data.nextBillingDate);
+            }
+            if (data.error && !data.invoices) {
+                toast({ variant: "destructive", title: "Error", description: data.error });
+            }
+        } catch (error) {
+            toast({ variant: "destructive", title: "Error", description: "Failed to fetch invoices" });
+        } finally {
+            setIsLoadingInvoices(false);
+        }
+    };
+
+    const handleManageSubscription = async () => {
+        setIsManagingBilling(true);
+        try {
+            const endpoint = plan === "pro" ? "/api/stripe/customer-portal" : "/api/stripe/checkout";
+            const res = await fetch(endpoint, { method: "POST" });
+            const data = await res.json();
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                toast({ variant: "destructive", title: "Error", description: data.error || "Failed to load portal" });
+            }
+        } catch (error) {
+            toast({ variant: "destructive", title: "Error", description: "Network error" });
+        } finally {
+            setIsManagingBilling(false);
+        }
+    };
+
+    const toggleBillingHistory = () => {
+        if (!showBillingHistory && invoices.length === 0) {
+            fetchInvoices();
+        }
+        setShowBillingHistory(!showBillingHistory);
+    };
+
+    // Fetch invoices on open for pro users
+    useEffect(() => {
+        if (isOpen && plan === "pro" && invoices.length === 0) {
+            fetchInvoices();
+        }
+    }, [isOpen, plan]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Reset state mapping
     useEffect(() => {
@@ -275,14 +337,114 @@ export function ProfileModal({ children }: { children: React.ReactNode }) {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                            <Label>Role</Label>
-                            <Input readOnly value={role} className="bg-muted cursor-not-allowed uppercase text-xs font-bold" />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label>Plan</Label>
-                            <Input readOnly value={plan} className="bg-muted cursor-not-allowed uppercase text-xs font-bold text-amber-500" />
+                    {/* Subscription & Billing Section */}
+                    <div className="pt-4 border-t border-border mt-4">
+                        <h4 className="text-sm font-semibold mb-3 tracking-tight flex items-center gap-2">
+                            <CreditCard className="w-4 h-4" /> Subscription & Billing
+                        </h4>
+                        <div className="bg-muted/30 p-4 border border-border/50 rounded-lg space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label>Role</Label>
+                                    <div className="text-sm font-semibold uppercase bg-background border px-3 py-2 rounded-md">
+                                        {role}
+                                    </div>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label>Plan</Label>
+                                    <div className="text-sm font-semibold uppercase text-amber-500 bg-background border px-3 py-2 rounded-md whitespace-nowrap overflow-hidden text-ellipsis">
+                                        {plan}
+                                    </div>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label>Status</Label>
+                                    <div className="text-sm font-semibold capitalize bg-background border px-3 py-2 rounded-md whitespace-nowrap overflow-hidden text-ellipsis">
+                                        {subscriptionStatus || 'Inactive'}
+                                    </div>
+                                </div>
+                                {plan === "pro" && nextBillingDate && (
+                                    <div className="grid gap-2">
+                                        <Label className="truncate">Next Billing Date</Label>
+                                        <div className="text-sm font-semibold bg-background border px-3 py-2 rounded-md whitespace-nowrap overflow-hidden text-ellipsis">
+                                            {new Date(nextBillingDate * 1000).toLocaleDateString()}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex flex-col gap-2 pt-2">
+                                <Button onClick={handleManageSubscription} disabled={isManagingBilling} className="w-full flex justify-between items-center bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-black dark:hover:bg-zinc-200">
+                                    <span>{plan === "pro" ? "Manage Subscription" : "Upgrade to Pro"}</span>
+                                    {isManagingBilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                                </Button>
+
+                                {plan === "pro" && (
+                                    <Button variant="outline" type="button" onClick={toggleBillingHistory} className="w-full flex justify-between items-center">
+                                        <span>{showBillingHistory ? "Hide Billing History" : "View Billing History"}</span>
+                                        <FileText className="w-4 h-4" />
+                                    </Button>
+                                )}
+                            </div>
+
+                            {showBillingHistory && (
+                                <div className="mt-4 overflow-x-auto border rounded-md bg-background">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Date</TableHead>
+                                                <TableHead>Amount</TableHead>
+                                                <TableHead>Status</TableHead>
+                                                <TableHead className="text-right">Actions</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {isLoadingInvoices ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={4} className="h-24 text-center">
+                                                        <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : invoices.length === 0 ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                                                        No invoices found
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : (
+                                                invoices.map((invoice) => (
+                                                    <TableRow key={invoice.id}>
+                                                        <TableCell className="whitespace-nowrap">
+                                                            {new Date(invoice.created * 1000).toLocaleDateString()}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            ${(invoice.amount_paid / 100).toFixed(2)} {invoice.currency?.toUpperCase()}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <span className={`px-2 py-1 text-xs rounded-full capitalize ${invoice.status === 'paid' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'}`}>
+                                                                {invoice.status}
+                                                            </span>
+                                                        </TableCell>
+                                                        <TableCell className="text-right whitespace-nowrap">
+                                                            <div className="flex justify-end gap-2">
+                                                                {invoice.hosted_invoice_url && (
+                                                                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => window.open(invoice.hosted_invoice_url, '_blank')} title="View">
+                                                                        <ExternalLink className="h-4 w-4" />
+                                                                    </Button>
+                                                                )}
+                                                                {invoice.invoice_pdf && (
+                                                                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => window.open(invoice.invoice_pdf, '_blank')} title="Download">
+                                                                        <Download className="h-4 w-4" />
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            )}
                         </div>
                     </div>
 
