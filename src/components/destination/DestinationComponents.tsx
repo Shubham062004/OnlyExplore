@@ -20,7 +20,8 @@ const getUnsplashImage = (seed: string, type: 'landscape'|'activity'|'hotel'|'ve
     vehicle: ['1558981403-c5f9899a28bc', '1494976388531-d1058494cdd8', '1511919884226-fd3cad34687c', '1549317661-bd32c8ce0bf2']
   };
   const list = ids[type];
-  const hash = seed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const safeSeed = seed || type || '';
+  const hash = safeSeed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return `https://images.unsplash.com/photo-${list[hash % list.length]}?auto=format&fit=crop&q=80&w=800`;
 };
 
@@ -73,37 +74,9 @@ export function DestinationHero({ title, description, destination }: { title: st
         <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold font-headline mb-4 text-white drop-shadow-lg">
           {title || `Explore ${destination}`}
         </h1>
-        <p className="text-lg md:text-xl text-zinc-200 mb-8 max-w-2xl mx-auto drop-shadow-md">
+        <p className="text-lg md:text-xl text-zinc-200 block max-w-2xl mx-auto drop-shadow-md">
           {description}
         </p>
-
-        <form onSubmit={handleSearch} className="flex flex-col md:flex-row items-center bg-background/95 backdrop-blur-md rounded-full shadow-2xl p-2 w-full max-w-3xl gap-2 mt-4">
-          <div className="flex-1 flex items-center px-4 w-full border-b md:border-b-0 md:border-r border-border/50 pb-2 md:pb-0">
-            <MapPin className="w-5 h-5 text-muted-foreground mr-3" />
-            <div className="flex flex-col items-start w-full">
-               <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Location</span>
-               <input 
-                 value={searchDest}
-                 onChange={(e) => setSearchDest(e.target.value)}
-                 className="w-full bg-transparent border-none outline-none text-foreground font-medium placeholder:text-muted-foreground/70"
-                 placeholder="Where to go?"
-               />
-            </div>
-          </div>
-          <div className="flex-1 flex items-center px-4 w-full">
-            <Calendar className="w-5 h-5 text-muted-foreground mr-3" />
-            <div className="flex flex-col items-start w-full">
-               <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Date</span>
-               <input 
-                 className="w-full bg-transparent border-none outline-none text-foreground font-medium placeholder:text-muted-foreground/70"
-                 placeholder="Add dates"
-               />
-            </div>
-          </div>
-          <Button type="submit" className="w-full md:w-auto rounded-full px-8 py-6 font-bold bg-primary hover:bg-primary/90 transition-colors">
-            <Search className="w-5 h-5 mr-2" /> Search
-          </Button>
-        </form>
       </div>
     </div>
   );
