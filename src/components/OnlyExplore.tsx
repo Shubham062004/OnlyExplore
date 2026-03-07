@@ -599,7 +599,13 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     let formattedText = `Your Trip to ${itinerary.destination}\n\n`;
     itinerary.days.forEach((day: ItineraryDay) => {
       formattedText += `Day ${day.day}\n`;
-      day.activities.forEach(activity => {
+      const allActs = [
+        ...(day.morning || []),
+        ...(day.afternoon || []),
+        ...(day.evening || []),
+        ...(day.activities || [])
+      ];
+      allActs.forEach(activity => {
         formattedText += `- ${activity.name}`;
         if (activity.description) {
           formattedText += `: ${activity.description}`;
@@ -635,7 +641,13 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     let formattedText = `Check out my trip to ${itinerary.destination}!\n\n`;
     itinerary.days.forEach(day => {
       formattedText += `Day ${day.day}\n`;
-      day.activities.forEach(activity => {
+      const allActs = [
+        ...(day.morning || []),
+        ...(day.afternoon || []),
+        ...(day.evening || []),
+        ...(day.activities || [])
+      ];
+      allActs.forEach(activity => {
         formattedText += `- ${activity.name}${activity.description ? `: ${activity.description}` : ''}\n`;
       });
       if (day.cost) {
