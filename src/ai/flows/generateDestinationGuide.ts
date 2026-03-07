@@ -43,18 +43,22 @@ const DestinationGuideSchema = z.object({
 });
 
 export async function generateDestinationGuide(destination: string) {
+  let cached = null;
   try {
     await connectDB();
-
-    const cached = await DestinationGuide.findOne({
+    cached = await DestinationGuide.findOne({
       destination: { $regex: new RegExp('^' + destination + '$', 'i') }
     });
+  } catch (dbError) {
+    console.warn("MongoDB connection or read failed, skipping cache:", dbError);
+  }
 
-    if (cached) {
-      console.log('Returning CACHED destination guide for:', destination);
-      return cached.data;
-    }
+  if (cached && cached.data) {
+    console.log('Returning CACHED destination guide for:', destination);
+    return cached.data;
+  }
 
+  try {
     console.log('GENERATING new destination guide for:', destination);
     const { output } = await ai.generate({
       prompt: `Generate a comprehensive travel destination guide for "${destination}".
@@ -77,10 +81,11 @@ Return:
 
     if (output) {
       try {
+        await connectDB();
         await DestinationGuide.findOneAndUpdate(
           { destination: destination.toLowerCase() },
           { data: output },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
+          { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
         );
       } catch (cacheError) {
         console.warn("Could not cache destination guide:", cacheError);

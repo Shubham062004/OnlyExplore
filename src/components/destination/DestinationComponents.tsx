@@ -2,14 +2,12 @@
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { 
   Building, MapPin, CheckSquare, Sun, Thermometer,
-  CloudLightning, Mountain, Users, Plane, Star, Search, Calendar, Map as MapIcon
+  CloudLightning, Mountain, Users, Plane, Star, Map as MapIcon, Calendar
 } from "lucide-react";
-import { useState } from "react";
 
 // Helper function to get random unique images per item
 const getUnsplashImage = (seed: string, type: 'landscape'|'activity'|'hotel'|'vehicle') => {
@@ -28,37 +26,27 @@ const getUnsplashImage = (seed: string, type: 'landscape'|'activity'|'hotel'|'ve
 export function DestinationSkeleton() {
   return (
     <div className="w-full flex-col space-y-8 pb-12">
-      <Skeleton className="w-full h-[420px]" />
+      <Skeleton className="w-full h-[420px] bg-zinc-200 dark:bg-zinc-800" />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-7xl mx-auto px-4 -mt-16 relative z-10">
-        <Skeleton className="h-24 rounded-2xl" />
-        <Skeleton className="h-24 rounded-2xl" />
-        <Skeleton className="h-24 rounded-2xl" />
-        <Skeleton className="h-24 rounded-2xl" />
+        <Skeleton className="h-24 rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+        <Skeleton className="h-24 rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+        <Skeleton className="h-24 rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+        <Skeleton className="h-24 rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
       </div>
       <div className="max-w-7xl mx-auto px-4 w-full">
-        <Skeleton className="w-full h-[280px] rounded-2xl mt-8" />
+        <Skeleton className="w-full h-[280px] rounded-2xl mt-8 bg-zinc-200 dark:bg-zinc-800" />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 max-w-7xl mx-auto px-4 mt-8">
-        <Skeleton className="h-64 rounded-2xl" />
-        <Skeleton className="h-64 rounded-2xl" />
-        <Skeleton className="h-64 rounded-2xl" />
-        <Skeleton className="h-64 rounded-2xl" />
+        <Skeleton className="h-64 rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+        <Skeleton className="h-64 rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+        <Skeleton className="h-64 rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+        <Skeleton className="h-64 rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
       </div>
     </div>
   );
 }
 
 export function DestinationHero({ title, description, destination }: { title: string; description: string; destination: string }) {
-  const [searchDest, setSearchDest] = useState(destination);
-  const router = useRouter();
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchDest.trim()) {
-      router.push(`/destination/${encodeURIComponent(searchDest.trim().toLowerCase())}`);
-    }
-  };
-
   return (
     <div className="relative w-full h-[420px] flex items-center justify-center">
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/60 z-10 rounded-b-2xl md:rounded-b-[3rem]" />
@@ -134,18 +122,9 @@ export function InteractiveMap({ destination }: { destination: string }) {
           loading="lazy"
           allowFullScreen
           referrerPolicy="no-referrer-when-downgrade"
-          src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}&q=${mapQuery}`}
+          src={`https://maps.google.com/maps?q=${mapQuery}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
           title={`${destination} Map`}
-          className="grayscale invert opacity-80 dark:invert-0 dark:brightness-100" // Optional UI styling adjustments
         />
-        {/* If no API key is provided, Fallback UI */}
-        {(!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) && (
-          <div className="absolute inset-0 bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center -z-10">
-            <span className="text-muted-foreground font-medium flex items-center gap-2">
-               <MapPin className="w-4 h-4" /> {destination} Region
-            </span>
-          </div>
-        )}
       </div>
     </div>
   );
