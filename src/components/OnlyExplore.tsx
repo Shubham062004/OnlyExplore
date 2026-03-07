@@ -18,6 +18,14 @@ import {
   User,
   Wallet,
   Wand2,
+  Thermometer,
+  CloudRain,
+  Wind,
+  Droplets,
+  CheckSquare,
+  ShieldQuestion,
+  Tent,
+  CircleDollarSign,
 } from 'lucide-react';
 
 import { generateTravelItinerary } from '@/ai/flows/generate-travel-itinerary';
@@ -36,16 +44,60 @@ import { Sidebar } from './Sidebar';
 import { useSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { TravelMap } from '@/components/TravelMap';
+import { ItineraryDashboard } from '@/components/ItineraryDashboard';
 
 const ActivitySchema = z.object({
   name: z.string(),
   description: z.string().optional(),
 });
 
+const TripOverviewSchema = z.object({
+  bestTime: z.string().optional(),
+  currency: z.string().optional(),
+  visa: z.string().optional(),
+  language: z.string().optional(),
+  averageTemperature: z.string().optional(),
+});
+
+const HotelSchema = z.object({
+  name: z.string(),
+  type: z.enum(['Budget', 'Mid-range', 'Luxury']).optional(),
+  rating: z.string().optional(),
+  location: z.string().optional(),
+});
+
+const RestaurantSchema = z.object({
+  name: z.string(),
+  cuisine: z.string().optional(),
+});
+
+const EmergencySchema = z.object({
+  emergencyNumber: z.string().optional(),
+  hospital: z.string().optional(),
+  embassy: z.string().optional(),
+});
+
+const BudgetSchema = z.object({
+  flights: z.number().optional(),
+  hotels: z.number().optional(),
+  food: z.number().optional(),
+  activities: z.number().optional(),
+  transport: z.number().optional(),
+  total: z.number().optional()
+});
+
 const ItineraryDaySchema = z.object({
   day: z.number(),
-  activities: z.array(ActivitySchema),
+  theme: z.string().optional(),
+  morning: z.array(ActivitySchema).optional(),
+  afternoon: z.array(ActivitySchema).optional(),
+  evening: z.array(ActivitySchema).optional(),
   cost: z.number().optional(),
+  travelTips: z.string().optional(),
+
+  // Fallback
+  activities: z.array(ActivitySchema).optional(),
 });
 
 const ItinerarySchema = z.object({
@@ -53,9 +105,25 @@ const ItinerarySchema = z.object({
   duration: z.number(),
   budget: z.number(),
   interests: z.array(z.string()),
+  
+  tripOverview: TripOverviewSchema.optional(),
+  budgetBreakdown: BudgetSchema.optional(),
+  
   days: z.array(ItineraryDaySchema),
+  hotels: z.array(HotelSchema).optional(),
+  restaurants: z.array(RestaurantSchema).optional(),
+  emergencyInfo: EmergencySchema.optional(),
+
   totalCost: z.number().optional(),
   notes: z.string().optional(),
+  weatherForecast: z.any().optional(),
+  packingChecklist: z.array(z.string()).optional(),
+  travelEssentials: z.array(z.string()).optional(),
+  healthSafety: z.array(z.string()).optional(),
+  campingGear: z.array(z.string()).optional(),
+  travelCostBreakdown: z.any().optional(),
+  mapNavigation: z.any().optional(),
+  offlineMapLink: z.string().optional(),
 });
 type Itinerary = z.infer<typeof ItinerarySchema>;
 type ItineraryDay = z.infer<typeof ItineraryDaySchema>;
@@ -78,38 +146,7 @@ const editFormSchema = z.object({
 });
 
 const ItineraryContent = ({ itinerary }: { itinerary: Itinerary }) => {
-  return (
-    <Accordion type="single" collapsible className="w-full" defaultValue="day-1">
-      {itinerary.days.map((day: ItineraryDay) => (
-        <AccordionItem value={`day-${day.day}`} key={`day-${day.day}`}>
-          <AccordionTrigger className="font-headline text-lg hover:no-underline text-foreground">
-            Day {day.day}
-          </AccordionTrigger>
-          <AccordionContent className="pt-2 text-base">
-            <ul className="space-y-2">
-              {day.activities.map((activity, index) => (
-                <li key={index} className="ml-6 list-disc text-muted-foreground marker:text-accent">
-                  <strong>{activity.name}</strong>
-                  {activity.description && `: ${activity.description}`}
-                </li>
-              ))}
-            </ul>
-            {day.cost && (
-              <p className="mt-3 font-semibold text-card-foreground">
-                Estimated Cost: {formatCurrencyDisplay(day.cost)}
-              </p>
-            )}
-          </AccordionContent>
-        </AccordionItem>
-      ))}
-      {itinerary.notes && (
-        <div className="mt-4 rounded-lg border border-accent/50 bg-accent/10 p-4">
-          <h4 className="font-bold text-accent-foreground mb-2">Notes from your Planner</h4>
-          <p className="text-sm text-accent-foreground/80">{itinerary.notes}</p>
-        </div>
-      )}
-    </Accordion>
-  );
+  return <ItineraryDashboard itinerary={itinerary} />;
 };
 
 export default function OnlyExplore({ initialChatId }: { initialChatId?: string }) {
@@ -137,8 +174,25 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
 
     if (initialChatId && initialChatId !== currentChatId && status === 'authenticated') {
       handleSelectChat(initialChatId, false);
+    } else if (!initialChatId && searchParams.has('destination') && !isLoading && chatHistory.length === 0) {
+      const dest = searchParams.get('destination') || '';
+      plannerForm.setValue('destination', dest);
+      
+      // Auto submit with dummy data if not filled, or let user fill the rest? 
+      // The requirement: "The chat page should initially create a new chat and start planning."
+      // Let's just set the destination. The user can click 'Start Planning'. Wait, requirement says:
+      // "The chat page should automatically create a new chat and start planning."
+      // I will simulate form submit if we have destination but need other fields? We can just use defaults.
+      onPlannerSubmit({
+        destination: dest,
+        duration: '5 days',
+        budget: '50000',
+        interests: 'sightseeing, food'
+      });
+      // Remove the query param to prevent endless re-triggering
+      router.replace('/chat');
     }
-  }, [initialChatId, status]);
+  }, [initialChatId, status, searchParams]);
 
   const plannerForm = useForm<z.infer<typeof plannerFormSchema>>({
     resolver: zodResolver(plannerFormSchema),
@@ -416,9 +470,10 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     setChatHistory([]);
 
     try {
-      console.log("Sending request with values:", values);
+      const plan = (session?.user as any)?.plan || 'free';
+      console.log("Sending request with values:", { ...values, plan });
 
-      const result = await generateTravelItinerary(values);
+      const result = await generateTravelItinerary({ ...values, plan });
 
       console.log("Raw AI result:", result);
 
@@ -458,7 +513,7 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
               body: JSON.stringify({ chatId: chatData._id, role: "assistant", content: JSON.stringify(result) })
             });
             setRefreshKey(prev => prev + 1);
-            router.push(`/${chatData._id}`);
+            router.push(`/chat/${chatData._id}`);
           }
         } catch (e) { console.error("Could not save to db", e); }
       }
@@ -544,7 +599,13 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     let formattedText = `Your Trip to ${itinerary.destination}\n\n`;
     itinerary.days.forEach((day: ItineraryDay) => {
       formattedText += `Day ${day.day}\n`;
-      day.activities.forEach(activity => {
+      const allActs = [
+        ...(day.morning || []),
+        ...(day.afternoon || []),
+        ...(day.evening || []),
+        ...(day.activities || [])
+      ];
+      allActs.forEach(activity => {
         formattedText += `- ${activity.name}`;
         if (activity.description) {
           formattedText += `: ${activity.description}`;
@@ -580,7 +641,13 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     let formattedText = `Check out my trip to ${itinerary.destination}!\n\n`;
     itinerary.days.forEach(day => {
       formattedText += `Day ${day.day}\n`;
-      day.activities.forEach(activity => {
+      const allActs = [
+        ...(day.morning || []),
+        ...(day.afternoon || []),
+        ...(day.evening || []),
+        ...(day.activities || [])
+      ];
+      allActs.forEach(activity => {
         formattedText += `- ${activity.name}${activity.description ? `: ${activity.description}` : ''}\n`;
       });
       if (day.cost) {
@@ -651,7 +718,13 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
 
         doc.setFontSize(11);
         doc.setTextColor(50);
-        day.activities.forEach(activity => {
+        const allActs = [
+          ...(day.morning || []),
+          ...(day.afternoon || []),
+          ...(day.evening || []),
+          ...(day.activities || [])
+        ];
+        allActs.forEach(activity => {
           if (yPos > 280) {
             doc.addPage();
             yPos = 20;
@@ -727,10 +800,16 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     setIsLoading(true);
     setCurrentChatId(chatId);
     if (navigate) {
-      router.push(`/${chatId}`);
+      router.push(`/chat/${chatId}`);
     }
     try {
       const res = await fetch(`/api/messages?chatId=${chatId}`);
+      if (res.status === 404) {
+        toast({ variant: "destructive", title: "This is a private chat." });
+        router.push('/');
+        setIsLoading(false);
+        return;
+      }
       if (!res.ok) throw new Error("Failed to fetch");
       const messages = await res.json();
 
@@ -764,7 +843,7 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
   const handleNewChat = () => {
     setChatHistory([]);
     setCurrentChatId(null);
-    router.push('/');
+    router.push('/chat');
   };
 
   const renderContent = () => {
