@@ -21,10 +21,8 @@ const GenerateTravelItineraryInputSchema = z.object({
 export type GenerateTravelItineraryInput =
   z.infer<typeof GenerateTravelItineraryInputSchema>;
 
-const ActivitySchema = z.object({
-  name: z.string(),
-  description: z.string().optional(),
-});
+// We define the shape inline to prevent Genkit from generating $ref 
+// in JSON Schema which Gemini API strictly rejects.
 
 const TripOverviewSchema = z.object({
   bestTime: z.string().optional(),
@@ -64,14 +62,14 @@ const BudgetSchema = z.object({
 const ItineraryDaySchema = z.object({
   day: z.number(),
   theme: z.string().optional(),
-  morning: z.array(ActivitySchema).optional(),
-  afternoon: z.array(ActivitySchema).optional(),
-  evening: z.array(ActivitySchema).optional(),
+  morning: z.array(z.object({ name: z.string(), description: z.string().optional() })).optional(),
+  afternoon: z.array(z.object({ name: z.string(), description: z.string().optional() })).optional(),
+  evening: z.array(z.object({ name: z.string(), description: z.string().optional() })).optional(),
   cost: z.number().optional(),
   travelTips: z.string().optional(),
 
   // Fallback
-  activities: z.array(ActivitySchema).optional(),
+  activities: z.array(z.object({ name: z.string(), description: z.string().optional() })).optional(),
 });
 
 const ItinerarySchema = z.object({
