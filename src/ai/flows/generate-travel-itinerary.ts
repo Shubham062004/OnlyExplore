@@ -26,10 +26,52 @@ const ActivitySchema = z.object({
   description: z.string().optional(),
 });
 
+const TripOverviewSchema = z.object({
+  bestTime: z.string().optional(),
+  currency: z.string().optional(),
+  visa: z.string().optional(),
+  language: z.string().optional(),
+  averageTemperature: z.string().optional(),
+});
+
+const HotelSchema = z.object({
+  name: z.string(),
+  type: z.enum(['Budget', 'Mid-range', 'Luxury']).optional(),
+  rating: z.string().optional(),
+  location: z.string().optional(),
+});
+
+const RestaurantSchema = z.object({
+  name: z.string(),
+  cuisine: z.string().optional(),
+});
+
+const EmergencySchema = z.object({
+  emergencyNumber: z.string().optional(),
+  hospital: z.string().optional(),
+  embassy: z.string().optional(),
+});
+
+const BudgetSchema = z.object({
+  flights: z.number().optional(),
+  hotels: z.number().optional(),
+  food: z.number().optional(),
+  activities: z.number().optional(),
+  transport: z.number().optional(),
+  total: z.number().optional()
+});
+
 const ItineraryDaySchema = z.object({
   day: z.number(),
-  activities: z.array(ActivitySchema),
+  theme: z.string().optional(),
+  morning: z.array(ActivitySchema).optional(),
+  afternoon: z.array(ActivitySchema).optional(),
+  evening: z.array(ActivitySchema).optional(),
   cost: z.number().optional(),
+  travelTips: z.string().optional(),
+
+  // Fallback
+  activities: z.array(ActivitySchema).optional(),
 });
 
 const ItinerarySchema = z.object({
@@ -37,7 +79,15 @@ const ItinerarySchema = z.object({
   duration: z.number(),
   budget: z.number(),
   interests: z.array(z.string()),
+  
+  tripOverview: TripOverviewSchema.optional(),
+  budgetBreakdown: BudgetSchema.optional(),
+  
   days: z.array(ItineraryDaySchema),
+  hotels: z.array(HotelSchema).optional(),
+  restaurants: z.array(RestaurantSchema).optional(),
+  emergencyInfo: EmergencySchema.optional(),
+
   totalCost: z.number().optional(),
   notes: z.string().optional(),
   weatherForecast: z.any().optional(),
@@ -96,17 +146,25 @@ Weather: {{weatherInfo}}
 Coordinates: {{coordinatesInfo}}
 Offline Map Link: {{offlineLink}}
 
-If Plan is "pro", generate advanced travel intelligence:
+If Plan is "pro", generate a structured travel dashboard including:
+- tripOverview: Best time to visit, currency, visa, language, average temperature.
+- budgetBreakdown: Cost estimation for flights, hotels, food, activities, transport, and total.
+- hotels: 3 recommendations (Budget, Mid-range, Luxury) with rating and location.
+- restaurants: Local food recommendations.
+- emergencyInfo: Emergency number, hospital, embassy.
 - Provide a detailed Packing Checklist (packingChecklist)
 - Provide Travel Essentials (travelEssentials)
-- Provide Health and Safety recommendations (healthSafety)
-- Provide Camping Gear suggestions if applicable (campingGear)
-- Provide a Travel Cost Breakdown in INR (travelCostBreakdown)
 - Include Map Navigation details like distance and travel time between day locations (mapNavigation)
 - Include the provided offlineMapLink string if available (offlineMapLink)
 - Add weather overview using the provided Weather data (weatherForecast)
 
-If Plan is "free" or omitted, provide ONLY the basic itinerary and omit the advanced intelligence fields above.
+For BOTH "free" and "pro", each day in 'days' should ideally have:
+- A custom 'theme' for the day
+- Segmented activities into 'morning', 'afternoon', and 'evening'
+- An estimated 'cost' for that day
+- Useful 'travelTips' for the day
+
+If Plan is "free" or omitted, provide ONLY the basic details and omit the advanced intelligence fields (tripOverview, budgetBreakdown, hotels, restaurants, emergencyInfo, packingChecklist, travelEssentials, mapNavigation, offlineMapLink, weatherForecast).
 `,
 });
 

@@ -45,16 +45,59 @@ import { useSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { TravelMap } from '@/components/TravelMap';
+import { ItineraryDashboard } from '@/components/ItineraryDashboard';
 
 const ActivitySchema = z.object({
   name: z.string(),
   description: z.string().optional(),
 });
 
+const TripOverviewSchema = z.object({
+  bestTime: z.string().optional(),
+  currency: z.string().optional(),
+  visa: z.string().optional(),
+  language: z.string().optional(),
+  averageTemperature: z.string().optional(),
+});
+
+const HotelSchema = z.object({
+  name: z.string(),
+  type: z.enum(['Budget', 'Mid-range', 'Luxury']).optional(),
+  rating: z.string().optional(),
+  location: z.string().optional(),
+});
+
+const RestaurantSchema = z.object({
+  name: z.string(),
+  cuisine: z.string().optional(),
+});
+
+const EmergencySchema = z.object({
+  emergencyNumber: z.string().optional(),
+  hospital: z.string().optional(),
+  embassy: z.string().optional(),
+});
+
+const BudgetSchema = z.object({
+  flights: z.number().optional(),
+  hotels: z.number().optional(),
+  food: z.number().optional(),
+  activities: z.number().optional(),
+  transport: z.number().optional(),
+  total: z.number().optional()
+});
+
 const ItineraryDaySchema = z.object({
   day: z.number(),
-  activities: z.array(ActivitySchema),
+  theme: z.string().optional(),
+  morning: z.array(ActivitySchema).optional(),
+  afternoon: z.array(ActivitySchema).optional(),
+  evening: z.array(ActivitySchema).optional(),
   cost: z.number().optional(),
+  travelTips: z.string().optional(),
+
+  // Fallback
+  activities: z.array(ActivitySchema).optional(),
 });
 
 const ItinerarySchema = z.object({
@@ -62,7 +105,15 @@ const ItinerarySchema = z.object({
   duration: z.number(),
   budget: z.number(),
   interests: z.array(z.string()),
+  
+  tripOverview: TripOverviewSchema.optional(),
+  budgetBreakdown: BudgetSchema.optional(),
+  
   days: z.array(ItineraryDaySchema),
+  hotels: z.array(HotelSchema).optional(),
+  restaurants: z.array(RestaurantSchema).optional(),
+  emergencyInfo: EmergencySchema.optional(),
+
   totalCost: z.number().optional(),
   notes: z.string().optional(),
   weatherForecast: z.any().optional(),
@@ -95,163 +146,7 @@ const editFormSchema = z.object({
 });
 
 const ItineraryContent = ({ itinerary }: { itinerary: Itinerary }) => {
-  return (
-    <div className="space-y-6">
-      <Accordion type="single" collapsible className="w-full" defaultValue="day-1">
-        {itinerary.days.map((day: ItineraryDay) => (
-          <AccordionItem value={`day-${day.day}`} key={`day-${day.day}`}>
-            <AccordionTrigger className="font-headline text-lg hover:no-underline text-foreground">
-              Day {day.day}
-            </AccordionTrigger>
-            <AccordionContent className="pt-2 text-base">
-              <ul className="space-y-2">
-                {day.activities.map((activity, index) => (
-                  <li key={index} className="ml-6 list-disc text-muted-foreground marker:text-accent">
-                    <strong>{activity.name}</strong>
-                    {activity.description && `: ${activity.description}`}
-                  </li>
-                ))}
-              </ul>
-              {day.cost && (
-                <p className="mt-3 font-semibold text-card-foreground">
-                  Estimated Cost: {formatCurrencyDisplay(day.cost)}
-                </p>
-              )}
-            </AccordionContent>
-          </AccordionItem>
-        ))}
-      </Accordion>
-
-      {itinerary.mapNavigation && (
-         <TravelMap 
-            destination={itinerary.destination} 
-            distance={itinerary.mapNavigation.distance} 
-            travelTime={itinerary.mapNavigation.travelTime}
-            offlineMapLink={itinerary.offlineMapLink}
-          />
-      )}
-
-      {itinerary.weatherForecast && (
-        <div className="p-4 border rounded-xl bg-card shadow-sm space-y-4">
-           <h4 className="font-semibold flex items-center gap-2">
-             <Thermometer className="w-5 h-5 text-accent" />
-             Weather Overview
-           </h4>
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-             <div className="flex flex-col items-center p-3 bg-muted rounded-lg border">
-                <Thermometer className="w-5 h-5 text-orange-500 mb-1" />
-                <span className="text-sm font-semibold">{itinerary.weatherForecast.temperature}°C</span>
-             </div>
-             <div className="flex flex-col items-center p-3 bg-muted rounded-lg border">
-                <Droplets className="w-5 h-5 text-blue-500 mb-1" />
-                <span className="text-sm font-semibold">{itinerary.weatherForecast.humidity}%</span>
-             </div>
-             <div className="flex flex-col items-center p-3 bg-muted rounded-lg border">
-                <Wind className="w-5 h-5 text-teal-500 mb-1" />
-                <span className="text-sm font-semibold">{itinerary.weatherForecast.windSpeed} km/h</span>
-             </div>
-             <div className="flex flex-col items-center p-3 bg-muted rounded-lg border">
-                <CloudRain className="w-5 h-5 text-indigo-500 mb-1" />
-                <span className="text-sm font-semibold">{itinerary.weatherForecast.rainProbability || 0}%</span>
-             </div>
-           </div>
-        </div>
-      )}
-
-      {(itinerary.packingChecklist || itinerary.travelEssentials) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {itinerary.packingChecklist && itinerary.packingChecklist.length > 0 && (
-            <div className="p-4 border rounded-xl bg-card shadow-sm">
-              <h4 className="font-semibold flex items-center gap-2 mb-3">
-                <CheckSquare className="w-5 h-5 text-accent" />
-                Packing Checklist
-              </h4>
-              <ul className="space-y-2">
-                {itinerary.packingChecklist.map((item, idx) => (
-                  <li key={idx} className="text-sm text-muted-foreground list-none flex items-start gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-accent/50 mt-1.5 shrink-0" /> 
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {itinerary.travelEssentials && itinerary.travelEssentials.length > 0 && (
-            <div className="p-4 border rounded-xl bg-card shadow-sm">
-              <h4 className="font-semibold flex items-center gap-2 mb-3">
-                <Sparkles className="w-5 h-5 text-amber-500" />
-                Travel Essentials
-              </h4>
-              <ul className="space-y-2">
-                {itinerary.travelEssentials.map((item, idx) => (
-                  <li key={idx} className="text-sm text-muted-foreground list-none flex items-start gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500/50 mt-1.5 shrink-0" /> 
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {itinerary.healthSafety && itinerary.healthSafety.length > 0 && (
-          <div className="p-4 border rounded-xl bg-card shadow-sm">
-            <h4 className="font-semibold flex items-center gap-2 mb-3">
-              <ShieldQuestion className="w-5 h-5 text-red-400" />
-              Health & Safety
-            </h4>
-            <ul className="space-y-2">
-              {itinerary.healthSafety.map((item, idx) => (
-                <li key={idx} className="text-sm text-muted-foreground list-none flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-red-400/50 mt-1.5 shrink-0" /> 
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {itinerary.campingGear && itinerary.campingGear.length > 0 && (
-          <div className="p-4 border rounded-xl bg-card shadow-sm">
-            <h4 className="font-semibold flex items-center gap-2 mb-3">
-              <Tent className="w-5 h-5 text-green-600" />
-              Camping Gear
-            </h4>
-            <ul className="space-y-2">
-              {itinerary.campingGear.map((item, idx) => (
-                <li key={idx} className="text-sm text-muted-foreground list-none flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-600/50 mt-1.5 shrink-0" /> 
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      {itinerary.travelCostBreakdown && (
-        <div className="p-4 border rounded-xl bg-card shadow-sm">
-          <h4 className="font-semibold flex items-center gap-2 mb-3">
-            <CircleDollarSign className="w-5 h-5 text-emerald-500" />
-            Cost Breakdown
-          </h4>
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-            {typeof itinerary.travelCostBreakdown === 'string' 
-              ? itinerary.travelCostBreakdown 
-              : JSON.stringify(itinerary.travelCostBreakdown, null, 2)}
-          </p>
-        </div>
-      )}
-
-      {itinerary.notes && (
-        <div className="mt-4 rounded-lg border border-accent/50 bg-accent/10 p-4">
-          <h4 className="font-bold text-accent-foreground mb-2">Notes from your Planner</h4>
-          <p className="text-sm text-accent-foreground/80">{itinerary.notes}</p>
-        </div>
-      )}
-    </div>
-  );
+  return <ItineraryDashboard itinerary={itinerary} />;
 };
 
 export default function OnlyExplore({ initialChatId }: { initialChatId?: string }) {
