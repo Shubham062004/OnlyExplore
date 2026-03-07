@@ -718,7 +718,13 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
 
         doc.setFontSize(11);
         doc.setTextColor(50);
-        day.activities.forEach(activity => {
+        const allActs = [
+          ...(day.morning || []),
+          ...(day.afternoon || []),
+          ...(day.evening || []),
+          ...(day.activities || [])
+        ];
+        allActs.forEach(activity => {
           if (yPos > 280) {
             doc.addPage();
             yPos = 20;
