@@ -111,28 +111,41 @@ export function QuickFacts({ facts }: { facts: any }) {
 }
 
 export function InteractiveMap({ destination }: { destination: string }) {
+  // Use Google Maps embed pointing dynamically to the destination
+  const mapQuery = encodeURIComponent(`${destination} Tourist Attractions`);
+  
   return (
     <div className="w-full mt-12 mb-12">
       <div className="flex justify-between items-end mb-4">
         <h3 className="text-2xl font-bold font-headline flex items-center gap-2">
-          Interactive Map
+          Location Map
         </h3>
-        <Button variant="link" className="text-primary font-medium hover:underline p-0 h-auto">
-          Open Full Map <MapPin className="w-4 h-4 ml-1" />
+        <Button variant="link" asChild className="text-primary font-medium hover:underline p-0 h-auto">
+          <a href={`https://www.google.com/maps/search/?api=1&query=${mapQuery}`} target="_blank" rel="noopener noreferrer">
+             Open Full Map <MapPin className="w-4 h-4 ml-1" />
+          </a>
         </Button>
       </div>
       <div className="relative w-full h-[280px] rounded-3xl overflow-hidden border shadow-inner bg-muted">
-        <Image 
-          src={`https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&q=80&w=1200`}
-          alt="Map Background"
-          fill
-          className="object-cover opacity-60 mix-blend-multiply dark:mix-blend-screen"
+        <iframe
+          width="100%"
+          height="100%"
+          style={{ border: 0 }}
+          loading="lazy"
+          allowFullScreen
+          referrerPolicy="no-referrer-when-downgrade"
+          src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}&q=${mapQuery}`}
+          title={`${destination} Map`}
+          className="grayscale invert opacity-80 dark:invert-0 dark:brightness-100" // Optional UI styling adjustments
         />
-        <div className="absolute inset-0 flex items-center justify-center">
-           <div className="bg-primary text-primary-foreground px-4 py-2 rounded-full font-bold shadow-xl flex items-center gap-2 animate-bounce">
-             <MapPin className="w-4 h-4" /> {destination}
-           </div>
-        </div>
+        {/* If no API key is provided, Fallback UI */}
+        {(!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) && (
+          <div className="absolute inset-0 bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center -z-10">
+            <span className="text-muted-foreground font-medium flex items-center gap-2">
+               <MapPin className="w-4 h-4" /> {destination} Region
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
