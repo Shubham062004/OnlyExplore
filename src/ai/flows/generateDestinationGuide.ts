@@ -76,10 +76,15 @@ Return:
     });
 
     if (output) {
-      await DestinationGuide.create({
-        destination: destination.toLowerCase(),
-        data: output
-      });
+      try {
+        await DestinationGuide.findOneAndUpdate(
+          { destination: destination.toLowerCase() },
+          { data: output },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      } catch (cacheError) {
+        console.warn("Could not cache destination guide:", cacheError);
+      }
 
       return output;
     }
