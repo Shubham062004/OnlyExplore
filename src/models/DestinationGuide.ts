@@ -17,6 +17,8 @@ const DestinationGuideSchema = new mongoose.Schema({
   }
 });
 
+DestinationGuideSchema.index({ destination: 1 });
+
 const DestinationGuide = mongoose.models.DestinationGuide || mongoose.model('DestinationGuide', DestinationGuideSchema);
 
 export default DestinationGuide;

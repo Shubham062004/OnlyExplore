@@ -5,6 +5,8 @@ import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import { metrics } from "@/lib/metrics";
+import { applyRateLimit } from "@/lib/rateLimit";
+import { verifyCaptcha } from "@/lib/captcha";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -18,13 +20,28 @@ export const authOptions: NextAuthOptions = {
         emailOrPhone: { label: "Email or Phone", type: "text" },
         password: { label: "Password", type: "password" },
         otp: { label: "OTP", type: "text" },
+        captchaToken: { label: "Captcha", type: "text" },
       },
       async authorize(credentials) {
-        const { emailOrPhone, password, otp } = credentials as any;
+        const { emailOrPhone, password, otp, captchaToken } = credentials as any;
+
+        if (!captchaToken) {
+          throw new Error("Missing CAPTCHA. Please complete the verification.");
+        }
+
+        const isValidCaptcha = await verifyCaptcha(captchaToken);
+        if (!isValidCaptcha) {
+          throw new Error("Invalid CAPTCHA");
+        }
 
         if (!emailOrPhone || !password) {
           metrics.trackAuthAttempt("credentials", false);
           throw new Error("Missing credentials");
+        }
+
+        const rateLimitRes = applyRateLimit(emailOrPhone || "anon");
+        if (!rateLimitRes.success) {
+          throw new Error("Too many login attempts. Please try again later.");
         }
 
         await connectDB();
@@ -99,9 +116,6 @@ export const authOptions: NextAuthOptions = {
       }
     })
   ],
-  session: {
-    strategy: "jwt"
-  },
   callbacks: {
     async jwt({ token, user, trigger, session }) {
       if (trigger === "update" && session) {
@@ -147,6 +161,18 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     }
+  },
+  session: { strategy: "jwt", maxAge: 24 * 60 * 60 },
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === "production" ? `__Secure-next-auth.session-token` : `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "strict",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

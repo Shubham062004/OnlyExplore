@@ -4,13 +4,26 @@ import crypto from "crypto";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import { logger } from "@/lib/logger";
+import { applyRateLimit } from "@/lib/rateLimit";
+import { verifyCaptcha } from "@/lib/captcha";
 
 export async function POST(req: Request) {
   try {
-    const { name, emailOrPhone, password } = await req.json();
+    const { name, emailOrPhone, password, captchaToken } = await req.json();
 
-    if (!emailOrPhone || !password) {
-      return NextResponse.json({ error: "Email/Phone and password are required" }, { status: 400 });
+    if (!emailOrPhone || !password || !captchaToken) {
+      return NextResponse.json({ success: false, error: "Email/Phone, password and captcha are required" }, { status: 400 });
+    }
+
+    const isValidCaptcha = await verifyCaptcha(captchaToken);
+    if (!isValidCaptcha) {
+      return NextResponse.json({ success: false, error: "Invalid CAPTCHA" }, { status: 400 });
+    }
+
+    const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown_ip";
+    const rateLimit = applyRateLimit(ip);
+    if (!rateLimit.success) {
+      return NextResponse.json({ error: "Too many attempts. Please try again later." }, { status: 429 });
     }
 
     await connectDB();

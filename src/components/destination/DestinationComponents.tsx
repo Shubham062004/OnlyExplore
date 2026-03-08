@@ -135,9 +135,9 @@ export function PopularPlaces({ places, destination }: { places: any[]; destinat
   return (
     <div className="space-y-6 mt-12">
       <h3 className="text-2xl font-bold font-headline">Popular Places</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+      <div className="flex overflow-x-auto pb-4 gap-6 snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible">
         {places.map((place, idx) => (
-          <div key={idx} className="group relative cursor-pointer overflow-hidden rounded-2xl shadow-sm hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 bg-card border">
+          <div key={idx} className="min-w-[280px] md:min-w-0 snap-start group relative cursor-pointer overflow-hidden rounded-2xl shadow-sm hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 bg-card border">
             <div className="relative h-48 w-full">
               <Image src={getUnsplashImage(place.name, 'landscape')} alt={place.name} fill className="object-cover transition-transform duration-500 group-hover:scale-110" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
@@ -221,9 +221,9 @@ export function AdventureActivities({ activities }: { activities: any[] }) {
   return (
     <div className="space-y-6 mt-16">
       <h3 className="text-2xl font-bold font-headline">Adventure Activities</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+      <div className="flex overflow-x-auto pb-4 gap-6 snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible">
         {activities.map((act, idx) => (
-          <div key={idx} className="group relative overflow-hidden rounded-2xl shadow-sm bg-card border">
+          <div key={idx} className="min-w-[280px] md:min-w-0 snap-start group relative overflow-hidden rounded-2xl shadow-sm bg-card border">
             <div className="relative h-48 w-full">
               <Image src={getUnsplashImage(act.name, 'activity')} alt={act.name} fill className="object-cover transition-transform duration-500 group-hover:scale-105" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
@@ -252,9 +252,9 @@ export function StayRecommendations({ hotels }: { hotels: any[] }) {
            <Button variant="ghost" size="sm" className="rounded-full">Budget</Button>
          </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="flex overflow-x-auto pb-4 gap-6 snap-x snap-mandatory md:grid md:grid-cols-3 lg:grid-cols-4 md:overflow-visible">
         {hotels.map((hotel, idx) => (
-          <div key={idx} className="bg-card border rounded-2xl overflow-hidden hover:shadow-xl transition-all shadow-sm flex flex-col">
+          <div key={idx} className="min-w-[280px] md:min-w-0 snap-start bg-card border rounded-2xl overflow-hidden hover:shadow-xl transition-all shadow-sm flex flex-col">
             <div className="relative h-48 w-full">
               <Image src={getUnsplashImage(hotel.name, 'hotel')} alt={hotel.name} fill className="object-cover" />
               <div className="absolute top-3 left-3 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">
@@ -311,9 +311,9 @@ export function NearbyDestinations({ nearby }: { nearby: any[] }) {
   return (
     <div className="space-y-6 mt-16">
       <h3 className="text-2xl font-bold font-headline">Nearby Destinations</h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+      <div className="flex overflow-x-auto pb-4 gap-6 snap-x snap-mandatory md:grid md:grid-cols-4 md:overflow-visible">
         {nearby.map((place, idx) => (
-          <div key={idx} className="group relative overflow-hidden rounded-xl shadow-sm bg-card border">
+          <div key={idx} className="min-w-[200px] md:min-w-0 snap-start group relative overflow-hidden rounded-xl shadow-sm bg-card border">
             <div className="relative h-32 w-full">
               <Image src={getUnsplashImage(place.name, 'landscape')} alt={place.name} fill className="object-cover transition-transform duration-500 group-hover:scale-105" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />

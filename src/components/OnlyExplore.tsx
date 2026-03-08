@@ -145,8 +145,8 @@ const editFormSchema = z.object({
   editRequest: z.string().min(5, 'Please enter a more detailed request.'),
 });
 
-const ItineraryContent = ({ itinerary }: { itinerary: Itinerary }) => {
-  return <ItineraryDashboard itinerary={itinerary} />;
+const ItineraryContent = ({ itinerary, onRequestEdit }: { itinerary: Itinerary, onRequestEdit?: (req: string) => void }) => {
+  return <ItineraryDashboard itinerary={itinerary} onRequestEdit={onRequestEdit} />;
 };
 
 export default function OnlyExplore({ initialChatId }: { initialChatId?: string }) {
@@ -689,87 +689,34 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     const { itinerary } = getLatestItinerary();
     if (!itinerary) return;
     try {
-      const { default: jsPDF } = await import('jspdf');
-      const doc = new jsPDF({
-        orientation: 'p',
-        unit: 'mm',
-        format: 'a4'
+      toast({ title: 'Generating PDF...', description: 'Please wait while we format your itinerary.' });
+      const res = await fetch('/api/export-trip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itinerary })
       });
 
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 14;
-      const contentWidth = pageWidth - margin * 2;
-      let yPos = 22;
-
-      doc.setFontSize(18);
-      doc.text(`Your Trip to ${itinerary.destination}`, margin, yPos);
-      yPos += 12;
-
-      itinerary.days.forEach((day: ItineraryDay) => {
-        if (yPos > 270) {
-          doc.addPage();
-          yPos = 20;
-        }
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`Day ${day.day}`, margin, yPos);
-        yPos += 7;
-        doc.setFont('helvetica', 'normal');
-
-        doc.setFontSize(11);
-        doc.setTextColor(50);
-        const allActs = [
-          ...(day.morning || []),
-          ...(day.afternoon || []),
-          ...(day.evening || []),
-          ...(day.activities || [])
-        ];
-        allActs.forEach(activity => {
-          if (yPos > 280) {
-            doc.addPage();
-            yPos = 20;
-          }
-          const activityText = `${activity.name}${activity.description ? `: ${activity.description}` : ''}`;
-          const splitText = doc.splitTextToSize(`- ${activityText}`, contentWidth - 4);
-          doc.text(splitText, margin + 4, yPos);
-          yPos += (splitText.length * 5);
-        });
-
-        if (day.cost) {
-          yPos += 2;
-          doc.setFont('helvetica', 'bold');
-          doc.text(`Estimated Cost: ${formatCurrencyDisplay(day.cost)}`, margin + 4, yPos);
-          doc.setFont('helvetica', 'normal');
-          yPos += 5;
-        }
-
-        yPos += 5;
-      });
-
-      if (itinerary.notes) {
-        if (yPos > 260) {
-          doc.addPage();
-          yPos = 20;
-        }
-        doc.setFontSize(12);
-        doc.setTextColor(0);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Notes from your Planner', margin, yPos);
-        yPos += 7;
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(80);
-        const notesText = doc.splitTextToSize(itinerary.notes, contentWidth);
-        doc.text(notesText, margin, yPos);
+      if (!res.ok) {
+        throw new Error('Failed to generate PDF');
       }
 
-      doc.save(`OnlyExplore-Itinerary-${itinerary.destination.replace(/\s/g, '_')}.pdf`);
-      toast({ title: 'PDF Downloaded!', description: 'Your itinerary has been saved.' });
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `OnlyExplore-Itinerary-${itinerary.destination.replace(/\s/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast({ title: 'PDF Downloaded!', description: 'Your high-quality pdf itinerary has been saved.' });
     } catch (e) {
       console.error('Error downloading PDF', e);
       toast({
         variant: 'destructive',
         title: 'Could not download PDF.',
-        description: 'An unexpected error occurred.',
+        description: 'An unexpected error occurred during generation.',
       });
     }
   };
@@ -921,7 +868,7 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
                             </AvatarFallback>
                           </Avatar>
                           <div className="bg-muted rounded-lg p-4 w-full">
-                            {typeof message.content === 'string' ? <p>{message.content}</p> : <ItineraryContent itinerary={message.content} />}
+                            {typeof message.content === 'string' ? <p>{message.content}</p> : <ItineraryContent itinerary={message.content} onRequestEdit={(req) => { editForm.setValue('editRequest', req); onEditSubmit(editForm.getValues()); }} />}
                           </div>
                         </div>
                       )
