@@ -8,35 +8,32 @@ export interface WeatherForecast {
   forecast7Days: any[];
 }
 
-export async function getWeatherForecast(destination: string): Promise<WeatherForecast | null> {
-  const apiKey = process.env.WEATHER_API_KEY;
+export async function getWeatherForDestination(destination: string): Promise<WeatherForecast | null> {
+  const apiKey = process.env.OPENWEATHER_API_KEY;
   if (!apiKey) {
-    console.warn("WEATHER_API_KEY is not set.");
+    console.warn("OPENWEATHER_API_KEY is not set.");
     return null;
   }
 
   try {
-    const res = await fetch(`https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${encodeURIComponent(destination)}&days=7`);
+    const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(destination)}&appid=${apiKey}&units=metric`);
     if (!res.ok) {
-      throw new Error(`Weather API error: ${res.statusText}`);
+      throw new Error(`OpenWeather API error: ${res.statusText}`);
     }
     const data = await res.json();
     
+    // OpenWeather map basic endpoint does not easily offer daily_chance_of_rain in standard free /weather.
+    // It provides rain 1h / 3h blocks. We fallback to general data for now.
     return {
-      temperature: data.current.temp_c,
-      humidity: data.current.humidity,
-      windSpeed: data.current.wind_kph,
-      rainProbability: data.forecast.forecastday[0]?.day?.daily_chance_of_rain || 0,
-      forecast7Days: data.forecast.forecastday.map((day: any) => ({
-        date: day.date,
-        maxTemp: day.day.maxtemp_c,
-        minTemp: day.day.mintemp_c,
-        condition: day.day.condition.text,
-        rainChance: day.day.daily_chance_of_rain,
-      }))
+      temperature: data.main.temp,
+      humidity: data.main.humidity,
+      windSpeed: data.wind.speed * 3.6, // Convert m/s to km/h
+      rainProbability: data.clouds?.all || 0, // Using cloud coverage as rough rain estimate substitute for basic free tier.
+      forecast7Days: [], // OWM basic API `/weather` does not include 7-day. Left empty unless OneCall API is explicitly provided.
     };
   } catch (error) {
-    console.error("Failed to fetch weather forecast:", error);
+    console.error("Failed to fetch weather forecast via OpenWeatherMap:", error);
     return null;
   }
 }
+

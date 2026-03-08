@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     const { token, password } = await req.json();
 
     if (!token || !password || password.length < 6) {
-      return NextResponse.json({ error: "Invalid token or password too short" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Invalid token or password too short" }, { status: 400 });
     }
 
     await connectDB();
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     });
 
     if (!user) {
-      return NextResponse.json({ error: "Token is invalid or has expired" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Token is invalid or has expired" }, { status: 400 });
     }
 
     user.password = await bcrypt.hash(password, 10);
@@ -36,6 +36,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Password reset successful" }, { status: 200 });
   } catch (error: any) {
     logger.error("Error resetting password", { error: error.message });
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
   }
 }

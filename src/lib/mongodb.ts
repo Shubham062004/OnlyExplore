@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { validateEnv } from "./env";
 
 const MONGODB_URI = process.env.MONGODB_URI as string;
 
@@ -12,7 +13,9 @@ if (!cached) {
   cached = (global as any).mongoose = { conn: null, promise: null };
 }
 
-export async function connectDB() {
+export const connectDB = async () => {
+  validateEnv();
+
   if (cached.conn) {
     return cached.conn;
   }

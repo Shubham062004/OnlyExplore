@@ -7,7 +7,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { metrics } from '@/lib/metrics';
 import { logger } from '@/lib/logger';
-import { getWeatherForecast } from '@/lib/weather';
+import { getWeatherForDestination } from '@/lib/weather';
 import { getCoordinates, generateOfflineMapLink } from '@/lib/maps';
 
 const GenerateTravelItineraryInputSchema = z.object({
@@ -171,17 +171,20 @@ const generateTravelItineraryFlow = ai.defineFlow(
     name: 'generateTravelItineraryFlow',
     inputSchema: GenerateTravelItineraryInputSchema,
     outputSchema: ItinerarySchema,
+    streamSchema: z.string(),
   },
-  async (input) => {
+  async (input, { sendChunk }) => {
     const startTime = Date.now();
     try {
+      sendChunk("Initializing travel planner...");
       let weatherInfo = "";
       let coordinatesInfo = "";
       let offlineLink = "";
 
       if (input.plan === 'pro') {
+        sendChunk("Fetching premium weather and map data...");
         const [weather, coords] = await Promise.all([
-          getWeatherForecast(input.destination),
+          getWeatherForDestination(input.destination),
           getCoordinates(input.destination),
         ]);
         if (weather) weatherInfo = JSON.stringify(weather);
@@ -192,6 +195,7 @@ const generateTravelItineraryFlow = ai.defineFlow(
         }
       }
 
+      sendChunk("Crafting personalized itinerary days...");
       const promptInput = {
         ...input,
         weatherInfo,
@@ -205,6 +209,7 @@ const generateTravelItineraryFlow = ai.defineFlow(
         throw new Error('AI failed to generate itinerary.');
       }
 
+      sendChunk("Finalizing budget and packing guide...");
       metrics.trackAiGeneration('generateTravelItinerary', Date.now() - startTime, true);
       return output;
     } catch (error: any) {

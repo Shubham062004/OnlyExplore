@@ -10,8 +10,9 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { TravelMap } from "@/components/TravelMap";
 import { formatCurrencyDisplay } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
+import { RefreshCw, Edit3 } from "lucide-react";
 
-export function ItineraryDashboard({ itinerary }: { itinerary: any }) {
+export function ItineraryDashboard({ itinerary, onRequestEdit }: { itinerary: any, onRequestEdit?: (req: string) => void }) {
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
   const toggleCheck = (item: string) => {
@@ -115,9 +116,21 @@ export function ItineraryDashboard({ itinerary }: { itinerary: any }) {
               {itinerary.days?.map((day: any) => (
                 <AccordionItem value={`day-${day.day}`} key={`day-${day.day}`} className="border-b-0 mb-2 border rounded-xl overflow-hidden shadow-sm">
                   <AccordionTrigger className="px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors hover:no-underline font-semibold text-lg">
-                    <span className="flex items-center gap-2">
-                       Day {day.day} {day.theme && <span className="text-muted-foreground text-sm font-normal">— {day.theme}</span>}
-                    </span>
+                    <div className="flex items-center justify-between w-full pr-4">
+                      <span className="flex items-center gap-2">
+                        Day {day.day} {day.theme && <span className="text-muted-foreground text-sm font-normal">— {day.theme}</span>}
+                      </span>
+                      {onRequestEdit && (
+                         <Button 
+                           variant="ghost" 
+                           size="sm" 
+                           className="h-7 px-2 text-xs text-muted-foreground hover:text-accent z-10"
+                           onClick={(e) => { e.stopPropagation(); onRequestEdit(`Regenerate Day ${day.day}`); }}
+                         >
+                           <RefreshCw className="w-3 h-3 mr-1" /> Regenerate
+                         </Button>
+                      )}
+                    </div>
                   </AccordionTrigger>
                   <AccordionContent className="p-4 bg-card text-base space-y-4">
                     
@@ -254,10 +267,17 @@ export function ItineraryDashboard({ itinerary }: { itinerary: any }) {
 
           {/* Budget Breakdown */}
           {itinerary.budgetBreakdown && (
-            <div className="p-5 border rounded-2xl bg-card shadow-sm">
-              <h3 className="text-lg font-headline font-semibold flex items-center gap-2 mb-4">
-                <CircleDollarSign className="w-5 h-5 text-emerald-500" /> Budget Breakdown
-              </h3>
+            <div className="p-5 border rounded-2xl bg-card shadow-sm relative group">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-headline font-semibold flex items-center gap-2">
+                  <CircleDollarSign className="w-5 h-5 text-emerald-500" /> Budget Breakdown
+                </h3>
+                {onRequestEdit && (
+                   <Button variant="ghost" size="sm" className="h-7 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => onRequestEdit("Regenerate budget with cheaper alternatives")}>
+                     <RefreshCw className="w-3 h-3 mr-1" /> Regenerate
+                   </Button>
+                )}
+              </div>
               <div className="space-y-3 text-sm">
                 {itinerary.budgetBreakdown.flights && (
                   <div className="flex justify-between border-b border-border/50 pb-2">
