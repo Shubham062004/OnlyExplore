@@ -13,7 +13,7 @@ export function DestinationCard({ name, image }: DestinationCardProps) {
 
   return (
     <div
-      onClick={() => router.push(`/chat?destination=${encodeURIComponent(name)}`)}
+      onClick={() => router.push(`/destination/${encodeURIComponent(name.toLowerCase())}`)}
       className="group relative cursor-pointer overflow-hidden rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 w-[200px] sm:w-[240px] md:w-[280px] shrink-0"
     >
       <div className="relative h-48 sm:h-56 md:h-64 mt-[1px]">

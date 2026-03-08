@@ -13,7 +13,7 @@ export function DestinationSearch() {
   const handleSearch = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (destination.trim()) {
-      router.push(`/chat?destination=${encodeURIComponent(destination.trim())}`);
+      router.push(`/destination/${encodeURIComponent(destination.trim())}`);
     }
   };
 
