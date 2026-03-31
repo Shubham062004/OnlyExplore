@@ -10,6 +10,12 @@ const DestinationGuideSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     required: true
   },
+  images: {
+    hero: String,
+    places: [String],
+    activities: [String],
+    hotels: [String]
+  },
   createdAt: {
     type: Date,
     default: Date.now,

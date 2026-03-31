@@ -3,6 +3,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { connectDB } from '@/lib/mongodb';
 import DestinationGuide from '@/models/DestinationGuide';
+import { fetchDestinationImages } from '@/lib/images';
 
 const DestinationGuideSchema = z.object({
   destination: z.string(),
@@ -18,7 +19,8 @@ const DestinationGuideSchema = z.object({
   }),
   popularPlaces: z.array(z.object({
     name: z.string(),
-    description: z.string(),
+    description: z.string().describe('max 15 words'),
+    image_query: z.string().describe('optimized for Unsplash search, e.g. "Paris Eiffel Tower night"')
   })),
   activities: z.array(z.object({
     name: z.string(),
@@ -55,7 +57,11 @@ export async function generateDestinationGuide(destination: string) {
 
   if (cached && cached.data) {
     console.log('Returning CACHED destination guide for:', destination);
-    return cached.data;
+    // Return combined data with images
+    return { 
+      ...cached.data, 
+      images: cached.images || (await fetchDestinationImages(destination)) 
+    };
   }
 
   try {
@@ -67,7 +73,10 @@ Do not use any $ref references.
 Return:
 - hero (title and short engaging description)
 - quickFacts (altitude, bestTime, avgTemp, location)
-- popularPlaces (up to 4 places, name and short description)
+- popularPlaces (up to 4 places):
+  - name: iconic landmark name
+  - description: short description (MAX 15 words)
+  - image_query: optimized for Unsplash search
 - activities (up to 4 adventure or local activities with location, bestSeason, cost string like "₹500-₹1000")
 - hotels (3 hotels: Luxury, Mid-range, Budget)
 - rentals (e.g. Bike rental, Scooter rental, Car rental with estimated cost)
@@ -80,18 +89,33 @@ Return:
     });
 
     if (output) {
+      // ✨ STEP 2: Fetch REAL images using Unsplash pattern
+      const heroQuery = output.hero?.title || destination;
+      const images = {
+        hero: `https://source.unsplash.com/1600x900/?${encodeURIComponent(heroQuery)}`,
+        places: output.popularPlaces.map(p => `https://source.unsplash.com/800x600/?${encodeURIComponent(p.image_query || p.name)}`),
+        // Fallback for others if needed
+        activities: output.activities?.map(a => `https://source.unsplash.com/800x600/?${encodeURIComponent(a.name)}`),
+        hotels: output.hotels?.map(h => `https://source.unsplash.com/800x600/?${encodeURIComponent(h.name)}`),
+      };
+
+      const combinedOutput = { ...output, images };
+
       try {
         await connectDB();
         await DestinationGuide.findOneAndUpdate(
           { destination: destination.toLowerCase() },
-          { data: output },
+          { 
+            data: output,
+            images: images 
+          },
           { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
         );
       } catch (cacheError) {
         console.warn("Could not cache destination guide:", cacheError);
       }
 
-      return output;
+      return combinedOutput;
     }
     
     return null;

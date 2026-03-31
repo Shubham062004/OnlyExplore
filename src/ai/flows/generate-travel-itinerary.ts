@@ -9,6 +9,7 @@ import { metrics } from '@/lib/metrics';
 import { logger } from '@/lib/logger';
 import { getWeatherForDestination } from '@/lib/weather';
 import { getCoordinates, generateOfflineMapLink } from '@/lib/maps';
+import { getDestinationImages } from '@/lib/imageService';
 
 const GenerateTravelItineraryInputSchema = z.object({
   destination: z.string().describe('The desired travel destination.'),
@@ -96,6 +97,12 @@ const ItinerarySchema = z.object({
   travelCostBreakdown: z.any().optional(),
   mapNavigation: z.any().optional(),
   offlineMapLink: z.string().optional(),
+  heroImage: z.string().optional(),
+  images: z.object({
+    hero: z.string(),
+    popularPlaces: z.array(z.object({ name: z.string(), image: z.string() })),
+    nearby: z.array(z.object({ name: z.string(), image: z.string() }))
+  }).optional(),
 });
 
 export type GenerateTravelItineraryOutput =
@@ -208,6 +215,15 @@ const generateTravelItineraryFlow = ai.defineFlow(
       if (!output) {
         throw new Error('AI failed to generate itinerary.');
       }
+
+      sendChunk("Curating stunning destination visuals...");
+      const images = await getDestinationImages(input.destination);
+      output.heroImage = images.heroImage;
+      output.images = {
+        hero: images.heroImage,
+        popularPlaces: images.popularPlaces,
+        nearby: images.nearby
+      };
 
       sendChunk("Finalizing budget and packing guide...");
       metrics.trackAiGeneration('generateTravelItinerary', Date.now() - startTime, true);
