@@ -4,12 +4,12 @@ import Stripe from "stripe";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2023-10-16" as any,
-  typescript: true,
-});
-
 export async function POST(req: Request) {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string || 'dummy', {
+    apiVersion: "2023-10-16" as any,
+    typescript: true,
+  });
+
   const body = await req.text();
   const headersList = await headers();
   const signature = headersList.get("Stripe-Signature") || "";

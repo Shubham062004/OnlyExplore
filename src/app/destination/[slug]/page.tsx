@@ -110,6 +110,7 @@ async function DestinationContent({ destination, session }: { destination: strin
         title={guide.hero?.title || `Explore ${destination}`} 
         description={guide.hero?.description || `Adventure unscripted. Uncover the magic of ${destination}.`} 
         destination={destination} 
+        image={guide.images?.hero}
       />
 
       <div className="w-full max-w-7xl mx-auto px-4">
@@ -121,7 +122,13 @@ async function DestinationContent({ destination, session }: { destination: strin
         {isPremium && <InteractiveMap destination={destination} />}
 
         {/* 4. Popular Places */}
-        {guide.popularPlaces && <PopularPlaces places={guide.popularPlaces} destination={destination} />}
+        {guide.popularPlaces && (
+          <PopularPlaces 
+            places={guide.popularPlaces} 
+            destination={destination} 
+            images={guide.images?.places}
+          />
+        )}
 
         {/* 5. Trip Planner CTA */}
         <TripPlannerCTA destination={destination} />
@@ -140,23 +147,31 @@ async function DestinationContent({ destination, session }: { destination: strin
           {isPremium && (
             <>
               {/* 6. Adventure Activities */}
-              {guide.activities && <AdventureActivities activities={guide.activities} />}
+              {guide.activities && (
+                <AdventureActivities 
+                  activities={guide.activities} 
+                  images={guide.images?.activities}
+                />
+              )}
 
               {/* 7. Where To Stay & Marketplace */}
               {guide.hotels ? (
-                <StayRecommendations hotels={guide.hotels} />
+                <StayRecommendations 
+                  hotels={guide.hotels} 
+                  images={guide.images?.hotels}
+                />
               ) : (
                 <div className="mb-12">
                    <h3 className="text-2xl font-headline font-bold mb-6">Hotels & Marketplace Deals</h3>
                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                      {[1,2,3].map((i) => (
                        <div key={i} className="bg-card border rounded-2xl p-4 shadow-sm flex flex-col gap-2">
-                         <div className="w-full h-32 bg-muted rounded-xl bg-cover bg-center" style={{ backgroundImage: `url('https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500&q=80')` }} />
-                         <h4 className="font-bold">Luxury Resort {i}</h4>
-                         <p className="text-sm text-muted-foreground">Downtown {destination}</p>
+                         <div className="w-full h-32 bg-muted rounded-xl bg-cover bg-center" style={{ backgroundImage: `url('https://source.unsplash.com/800x600/?hotel,${destination},${i}')` }} />
+                         <h4 className="font-bold text-sm">Luxury Resort {i}</h4>
+                         <p className="text-xs text-muted-foreground line-clamp-1">Downtown {destination}</p>
                          <div className="flex justify-between items-center mt-2">
-                           <span className="font-bold text-lg">₹{4000 * i} <span className="text-xs font-normal">/ night</span></span>
-                           <span className="text-xs font-medium text-amber-500 bg-amber-500/10 px-2 py-1 rounded-full">★ {4.5 + i * 0.1}</span>
+                           <span className="font-bold text-md">₹{4000 * i} <span className="text-[10px] font-normal">/ night</span></span>
+                           <span className="text-[10px] font-medium text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full">★ {4.5 + i * 0.1}</span>
                          </div>
                        </div>
                      ))}
@@ -176,7 +191,12 @@ async function DestinationContent({ destination, session }: { destination: strin
           )}
 
           {/* 11. Nearby Destinations */}
-          {guide.nearbyDestinations && <NearbyDestinations nearby={guide.nearbyDestinations} />}
+          {guide.nearbyDestinations && (
+            <NearbyDestinations 
+              nearby={guide.nearbyDestinations} 
+              images={guide.images?.hotels}
+            />
+          )}
 
         </div>
 

@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
-import { ClientOnly } from '@/components/ClientOnly';
 
 import { Providers } from '@/components/Providers';
 
@@ -26,10 +25,8 @@ export default function RootLayout({
       // className="font-body antialiased"
       >
         <Providers>
-          <ClientOnly>
-            {children}
-            <Toaster />
-          </ClientOnly>
+          {children}
+          <Toaster />
         </Providers>
       </body>
     </html>

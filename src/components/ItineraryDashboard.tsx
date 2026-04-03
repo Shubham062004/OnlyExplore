@@ -41,7 +41,7 @@ export function ItineraryDashboard({ itinerary, onRequestEdit }: { itinerary: an
       <div className="relative w-full h-64 md:h-80 rounded-2xl overflow-hidden shadow-lg border border-border">
         {/* Placeholder for Unsplash Image based on destination */}
         <img 
-          src={`https://images.unsplash.com/photo-1514282401047-d79a71a590e8?auto=format&fit=crop&q=80&w=1200`} 
+          src={itinerary.heroImage || itinerary.images?.hero || `https://images.unsplash.com/photo-1514282401047-d79a71a590e8?auto=format&fit=crop&q=80&w=1200`} 
           onError={(e) => { e.currentTarget.src = 'https://placehold.co/1200x600/png?text=' + itinerary.destination }}
           alt={itinerary.destination} 
           className="w-full h-full object-cover"
@@ -249,6 +249,52 @@ export function ItineraryDashboard({ itinerary, onRequestEdit }: { itinerary: an
               )}
             </div>
           )}
+
+          {/* New Dynamic Popular Places & Nearby Spots */}
+          {itinerary.images && (
+            <div className="space-y-6">
+              {itinerary.images.popularPlaces?.length > 0 && (
+                <div className="p-5 border rounded-2xl bg-card shadow-sm">
+                  <h3 className="text-xl font-headline font-semibold flex items-center gap-2 mb-4">
+                    <Camera className="w-5 h-5 text-accent" /> Iconic Landmarks
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {itinerary.images.popularPlaces.map((place: any, i: number) => (
+                      <div key={i} className="group relative rounded-xl overflow-hidden aspect-video shadow-sm border border-border bg-muted">
+                        <img 
+                          src={place.image} 
+                          alt={place.name} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-2">
+                          <span className="text-white text-[10px] sm:text-xs font-bold truncate">{place.name}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {itinerary.images.nearby?.length > 0 && (
+                <div className="p-5 border rounded-2xl bg-card shadow-sm">
+                  <h3 className="text-xl font-headline font-semibold flex items-center gap-2 mb-4">
+                    <MapPin className="w-5 h-5 text-accent" /> Nearby Gems
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {itinerary.images.nearby.map((spot: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 bg-muted/50 border rounded-full pl-1 pr-3 py-1">
+                        <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
+                          <img src={spot.image} alt={spot.name} className="w-full h-full object-cover" />
+                        </div>
+                        <span className="text-xs font-medium">{spot.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
 
           {/* Map Components */}
           {itinerary.mapNavigation && (

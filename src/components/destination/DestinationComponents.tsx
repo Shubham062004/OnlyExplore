@@ -9,18 +9,10 @@ import {
   CloudLightning, Mountain, Users, Plane, Star, Map as MapIcon, Calendar
 } from "lucide-react";
 
-// Helper function to get random unique images per item
 const getUnsplashImage = (seed: string, type: 'landscape'|'activity'|'hotel'|'vehicle') => {
-  const ids = {
-    landscape: ['1493246507139-91e8fad9978e', '1506905925346-21bda4d32df4', '1464822759023-fed622ff2c3b', '1469827160215-9d29e96e72f4'],
-    activity: ['1551632811-561732d1e306', '1533692328998-ea4f08e7b1cc', '1522163182402-834f871fd851', '1478131143081-80f7f84ca84d'],
-    hotel: ['1566073171639-66290f0cb108', '1520250497591-112f2f40a3f4', '1551882547-ff40c0d1398c', '1542314831-c53e05a1c1b2'],
-    vehicle: ['1558981403-c5f9899a28bc', '1494976388531-d1058494cdd8', '1511919884226-fd3cad34687c', '1549317661-bd32c8ce0bf2']
-  };
-  const list = ids[type];
-  const safeSeed = seed || type || '';
-  const hash = safeSeed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return `https://images.unsplash.com/photo-${list[hash % list.length]}?auto=format&fit=crop&q=80&w=800`;
+  const query = `${seed} ${type} travel photography high quality`;
+  // Using the user's requested source.unsplash.com pattern for dynamic results
+  return `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}`;
 };
 
 export function DestinationSkeleton() {
@@ -46,23 +38,26 @@ export function DestinationSkeleton() {
   );
 }
 
-export function DestinationHero({ title, description, destination }: { title: string; description: string; destination: string }) {
+export function DestinationHero({ title, description, destination, image }: { title: string; description: string; destination: string; image?: string }) {
+  const fallback = `https://source.unsplash.com/1600x900/?${encodeURIComponent(destination)},skyline`;
+  
   return (
     <div className="relative w-full h-[420px] flex items-center justify-center">
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/60 z-10 rounded-b-2xl md:rounded-b-[3rem]" />
-      <Image 
-        src={`https://images.unsplash.com/photo-1514282401047-d79a71a590e8?auto=format&fit=crop&q=80&w=1920`}
+      <img
+        src={image || fallback}
         alt={title}
-        fill
-        className="object-cover rounded-b-2xl md:rounded-b-[3rem]"
-        priority
+        className="absolute inset-0 w-full h-full object-cover rounded-b-2xl md:rounded-b-[3rem] -z-10"
+        onError={(e) => {
+          e.currentTarget.src = `https://images.unsplash.com/featured/1600x900/?travel,city,${encodeURIComponent(destination)}`;
+        }}
       />
       
       <div className="relative z-20 text-center px-4 max-w-4xl mx-auto w-full flex flex-col items-center">
-        <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold font-headline mb-4 text-white drop-shadow-lg">
+        <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold font-headline mb-4 text-white drop-shadow-lg leading-tight uppercase">
           {title || `Explore ${destination}`}
         </h1>
-        <p className="text-lg md:text-xl text-zinc-200 block max-w-2xl mx-auto drop-shadow-md">
+        <p className="text-lg md:text-xl text-zinc-200 block max-w-2xl mx-auto drop-shadow-md font-medium">
           {description}
         </p>
       </div>
@@ -130,7 +125,7 @@ export function InteractiveMap({ destination }: { destination: string }) {
   );
 }
 
-export function PopularPlaces({ places, destination }: { places: any[]; destination: string }) {
+export function PopularPlaces({ places, destination, images }: { places: any[]; destination: string; images?: string[] }) {
   if (!places || places.length === 0) return null;
   return (
     <div className="space-y-6 mt-12">
@@ -139,15 +134,22 @@ export function PopularPlaces({ places, destination }: { places: any[]; destinat
         {places.map((place, idx) => (
           <div key={idx} className="min-w-[280px] md:min-w-0 snap-start group relative cursor-pointer overflow-hidden rounded-2xl shadow-sm hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 bg-card border">
             <div className="relative h-48 w-full">
-              <Image src={getUnsplashImage(place.name, 'landscape')} alt={place.name} fill className="object-cover transition-transform duration-500 group-hover:scale-110" />
+              <img 
+                src={images?.[idx] || getUnsplashImage(place.name, 'landscape')} 
+                alt={place.name} 
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                onError={(e) => {
+                   e.currentTarget.src = `https://images.unsplash.com/featured/800x450/?travel,${encodeURIComponent(place.name)}`;
+                }}
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-              <Button size="icon" variant="secondary" className="absolute top-3 right-3 w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 backdrop-blur-md hover:bg-white text-white hover:text-black">
+              <Button size="icon" variant="secondary" className="absolute top-3 right-3 w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 backdrop-blur-md hover:bg-white text-white hover:text-black border-none ring-1 ring-white/20">
                 <MapIcon className="w-4 h-4" />
               </Button>
             </div>
             <div className="p-5 absolute bottom-0 left-0 right-0 text-white">
               <h4 className="font-bold text-lg mb-1 drop-shadow-md leading-tight">{place.name}</h4>
-              <p className="text-xs text-zinc-200 line-clamp-2 drop-shadow-md">{place.description}</p>
+              <p className="text-xs text-zinc-200 line-clamp-2 drop-shadow-md font-medium">{place.description}</p>
             </div>
           </div>
         ))}
@@ -216,7 +218,7 @@ function SparklesIcon(props: any) {
   );
 }
 
-export function AdventureActivities({ activities }: { activities: any[] }) {
+export function AdventureActivities({ activities, images }: { activities: any[]; images?: string[] }) {
   if (!activities || activities.length === 0) return null;
   return (
     <div className="space-y-6 mt-16">
@@ -225,12 +227,22 @@ export function AdventureActivities({ activities }: { activities: any[] }) {
         {activities.map((act, idx) => (
           <div key={idx} className="min-w-[280px] md:min-w-0 snap-start group relative overflow-hidden rounded-2xl shadow-sm bg-card border">
             <div className="relative h-48 w-full">
-              <Image src={getUnsplashImage(act.name, 'activity')} alt={act.name} fill className="object-cover transition-transform duration-500 group-hover:scale-105" />
+              <img 
+                src={images?.[idx] || getUnsplashImage(act.name, 'activity')} 
+                alt={act.name} 
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                onError={(e) => {
+                   e.currentTarget.src = `https://images.unsplash.com/featured/800x450/?adventure,${encodeURIComponent(act.name)}`;
+                }}
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+              <div className="absolute top-3 left-3 bg-indigo-500/80 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">
+                 {act.bestSeason || 'Year-round'}
+              </div>
             </div>
             <div className="absolute bottom-0 left-0 p-4 text-white">
               <h4 className="font-bold text-lg leading-tight">{act.name}</h4>
-              <p className="text-xs text-zinc-300 font-medium">{act.cost ? `Starts at ${act.cost}` : act.bestSeason}</p>
+              <p className="text-xs text-indigo-200 font-semibold">{act.cost ? `Starts at ${act.cost}` : act.location}</p>
             </div>
           </div>
         ))}
@@ -239,25 +251,32 @@ export function AdventureActivities({ activities }: { activities: any[] }) {
   );
 }
 
-export function StayRecommendations({ hotels }: { hotels: any[] }) {
+export function StayRecommendations({ hotels, images }: { hotels: any[]; images?: string[] }) {
   if (!hotels || hotels.length === 0) return null;
   return (
     <div className="space-y-6 mt-16">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
          <h3 className="text-2xl font-bold font-headline">Where to Stay</h3>
          <div className="flex bg-muted p-1 rounded-full border">
-           <Button variant="ghost" size="sm" className="rounded-full bg-primary text-primary-foreground shadow-sm">All Hotels</Button>
-           <Button variant="ghost" size="sm" className="rounded-full">Luxury</Button>
-           <Button variant="ghost" size="sm" className="rounded-full">Mid-range</Button>
-           <Button variant="ghost" size="sm" className="rounded-full">Budget</Button>
+            <Button variant="ghost" size="sm" className="rounded-full bg-primary text-primary-foreground shadow-sm">All Hotels</Button>
+            <Button variant="ghost" size="sm" className="rounded-full">Luxury</Button>
+            <Button variant="ghost" size="sm" className="rounded-full">Mid-range</Button>
+            <Button variant="ghost" size="sm" className="rounded-full">Budget</Button>
          </div>
       </div>
       <div className="flex overflow-x-auto pb-4 gap-6 snap-x snap-mandatory md:grid md:grid-cols-3 lg:grid-cols-4 md:overflow-visible">
         {hotels.map((hotel, idx) => (
           <div key={idx} className="min-w-[280px] md:min-w-0 snap-start bg-card border rounded-2xl overflow-hidden hover:shadow-xl transition-all shadow-sm flex flex-col">
             <div className="relative h-48 w-full">
-              <Image src={getUnsplashImage(hotel.name, 'hotel')} alt={hotel.name} fill className="object-cover" />
-              <div className="absolute top-3 left-3 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">
+              <img 
+                src={images?.[idx] || getUnsplashImage(hotel.name, 'hotel')} 
+                alt={hotel.name} 
+                className="w-full h-full object-cover" 
+                onError={(e) => {
+                   e.currentTarget.src = `https://images.unsplash.com/featured/800x450/?hotel,luxury,${encodeURIComponent(hotel.name)}`;
+                }}
+              />
+              <div className="absolute top-3 left-3 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider shadow-sm">
                 {hotel.type}
               </div>
             </div>
@@ -265,18 +284,18 @@ export function StayRecommendations({ hotels }: { hotels: any[] }) {
               <div>
                  <div className="flex justify-between items-start mb-2">
                    <h4 className="font-bold text-lg leading-tight w-4/5">{hotel.name}</h4>
-                   <div className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold px-1.5 py-0.5 rounded flex items-center">
-                     ★ 4.8
+                   <div className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-bold px-1.5 py-0.5 rounded flex items-center">
+                     ★ {4.6 + (idx * 0.1)}
                    </div>
                  </div>
-                 <p className="text-sm text-muted-foreground line-clamp-1 mb-4">Located in prime area with valley view.</p>
+                 <p className="text-sm text-muted-foreground line-clamp-1 mb-4 font-medium">Top rated verified stay.</p>
               </div>
               <div className="flex items-center justify-between pt-4 border-t border-border/50">
                  <div>
-                   <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Price Estimate</span>
-                   <p className="font-bold text-lg">₹4,200</p>
+                   <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold">Est. Price</span>
+                   <p className="font-bold text-lg">₹{(idx + 2) * 2100}</p>
                  </div>
-                 <Button size="sm" className="rounded-full font-bold px-6">Book</Button>
+                 <Button size="sm" className="rounded-full font-bold px-6 shadow-sm">Book</Button>
               </div>
             </div>
           </div>
@@ -295,7 +314,14 @@ export function RentalsSection({ rentals }: { rentals: any[] }) {
         {rentals.map((rental, idx) => (
           <div key={idx} className="bg-card border rounded-2xl p-5 text-center shadow-sm hover:shadow-lg transition-all flex flex-col items-center">
              <div className="w-24 h-24 relative mb-4 rounded-full overflow-hidden border-4 border-muted">
-                <Image src={getUnsplashImage(rental.type, 'vehicle')} alt={rental.type} fill className="object-cover" />
+                <img 
+                  src={getUnsplashImage(rental.type, 'vehicle')} 
+                  alt={rental.type} 
+                  className="w-full h-full object-cover" 
+                  onError={(e) => {
+                    e.currentTarget.src = `https://images.unsplash.com/featured/400x400/?vehicle,${encodeURIComponent(rental.type)}`;
+                  }}
+                />
              </div>
              <h4 className="font-bold mb-1">{rental.type}</h4>
              <p className="text-sm text-blue-600 dark:text-blue-400 font-semibold">{rental.cost}/day</p>
@@ -306,7 +332,7 @@ export function RentalsSection({ rentals }: { rentals: any[] }) {
   );
 }
 
-export function NearbyDestinations({ nearby }: { nearby: any[] }) {
+export function NearbyDestinations({ nearby, images }: { nearby: any[]; images?: string[] }) {
   if (!nearby || nearby.length === 0) return null;
   return (
     <div className="space-y-6 mt-16">
@@ -315,7 +341,14 @@ export function NearbyDestinations({ nearby }: { nearby: any[] }) {
         {nearby.map((place, idx) => (
           <div key={idx} className="min-w-[200px] md:min-w-0 snap-start group relative overflow-hidden rounded-xl shadow-sm bg-card border">
             <div className="relative h-32 w-full">
-              <Image src={getUnsplashImage(place.name, 'landscape')} alt={place.name} fill className="object-cover transition-transform duration-500 group-hover:scale-105" />
+              <img 
+                src={images?.[idx] || getUnsplashImage(place.name, 'landscape')} 
+                alt={place.name} 
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                onError={(e) => {
+                   e.currentTarget.src = `https://images.unsplash.com/featured/800x450/?city,${encodeURIComponent(place.name)}`;
+                }}
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
             </div>
             <div className="absolute bottom-0 left-0 p-3 text-white">

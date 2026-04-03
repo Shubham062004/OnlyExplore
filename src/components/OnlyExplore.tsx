@@ -124,6 +124,12 @@ const ItinerarySchema = z.object({
   travelCostBreakdown: z.any().optional(),
   mapNavigation: z.any().optional(),
   offlineMapLink: z.string().optional(),
+  heroImage: z.string().optional(),
+  images: z.object({
+    hero: z.string(),
+    popularPlaces: z.array(z.object({ name: z.string(), image: z.string() })),
+    nearby: z.array(z.object({ name: z.string(), image: z.string() }))
+  }).optional(),
 });
 type Itinerary = z.infer<typeof ItinerarySchema>;
 type ItineraryDay = z.infer<typeof ItineraryDaySchema>;
@@ -475,7 +481,7 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
 
       const result = await generateTravelItinerary({ ...values, plan });
 
-      console.log("Raw AI result:", result);
+      console.log("AI Generated Travel Data:", result);
 
       if (!result) {
         throw new Error("AI returned empty result.");

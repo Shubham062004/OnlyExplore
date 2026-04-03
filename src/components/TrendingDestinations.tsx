@@ -4,12 +4,12 @@ import { DestinationCard } from "./DestinationCard";
 import { Sparkles } from "lucide-react";
 
 const trending = [
-  { name: "Maldives", image: "https://images.unsplash.com/photo-1514282401047-d79a71a590e8?auto=format&fit=crop&q=80&w=800" },
-  { name: "Swiss Alps", image: "https://images.unsplash.com/photo-1531224353844-323a7efd2566?auto=format&fit=crop&q=80&w=800" },
-  { name: "Paris", image: "https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?auto=format&fit=crop&q=80&w=800" },
-  { name: "Goa", image: "https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&q=80&w=800" },
-  { name: "Manali", image: "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?auto=format&fit=crop&q=80&w=800" },
-  { name: "Kyoto", image: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&q=80&w=800" },
+  { name: "Maldives", image: "https://source.unsplash.com/800x600/?maldives,island" },
+  { name: "Swiss Alps", image: "https://source.unsplash.com/800x600/?switzerland,alps,mountain" },
+  { name: "Paris", image: "https://source.unsplash.com/800x600/?paris,landmark" },
+  { name: "Goa", image: "https://source.unsplash.com/800x600/?goa,beach" },
+  { name: "Manali", image: "https://source.unsplash.com/800x600/?manali,mountain" },
+  { name: "Kyoto", image: "https://source.unsplash.com/800x600/?kyoto,temple" },
 ];
 
 export function TrendingDestinations() {
