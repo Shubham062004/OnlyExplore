@@ -9,10 +9,10 @@ import {
   CloudLightning, Mountain, Users, Plane, Star, Map as MapIcon, Calendar
 } from "lucide-react";
 
-const getUnsplashImage = (seed: string, type: 'landscape'|'activity'|'hotel'|'vehicle') => {
-  const query = `${seed} ${type} travel photography high quality`;
-  // Using the user's requested source.unsplash.com pattern for dynamic results
-  return `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}`;
+const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1000&auto=format&fit=crop";
+
+const getUnsplashImage = (seed: string, type: string) => {
+  return `https://images.unsplash.com/photo-1506461883276-594a12b11cf3?q=80&w=800&auto=format&fit=crop`; // dynamic placeholder
 };
 
 export function DestinationSkeleton() {
@@ -39,17 +39,17 @@ export function DestinationSkeleton() {
 }
 
 export function DestinationHero({ title, description, destination, image }: { title: string; description: string; destination: string; image?: string }) {
-  const fallback = `https://source.unsplash.com/1600x900/?${encodeURIComponent(destination)},skyline`;
+  const fallback = `https://images.unsplash.com/featured/1600x900/?${encodeURIComponent(destination)},travel`;
   
   return (
     <div className="relative w-full h-[420px] flex items-center justify-center">
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/60 z-10 rounded-b-2xl md:rounded-b-[3rem]" />
       <img
-        src={image || fallback}
+        src={image || FALLBACK_IMAGE}
         alt={title}
         className="absolute inset-0 w-full h-full object-cover rounded-b-2xl md:rounded-b-[3rem] -z-10"
         onError={(e) => {
-          e.currentTarget.src = `https://images.unsplash.com/featured/1600x900/?travel,city,${encodeURIComponent(destination)}`;
+          e.currentTarget.src = FALLBACK_IMAGE;
         }}
       />
       
@@ -135,11 +135,11 @@ export function PopularPlaces({ places, destination, images }: { places: any[]; 
           <div key={idx} className="min-w-[280px] md:min-w-0 snap-start group relative cursor-pointer overflow-hidden rounded-2xl shadow-sm hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 bg-card border">
             <div className="relative h-48 w-full">
               <img 
-                src={images?.[idx] || getUnsplashImage(place.name, 'landscape')} 
+                src={images?.[idx] || FALLBACK_IMAGE} 
                 alt={place.name} 
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
                 onError={(e) => {
-                   e.currentTarget.src = `https://images.unsplash.com/featured/800x450/?travel,${encodeURIComponent(place.name)}`;
+                   e.currentTarget.src = FALLBACK_IMAGE;
                 }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
@@ -228,11 +228,11 @@ export function AdventureActivities({ activities, images }: { activities: any[];
           <div key={idx} className="min-w-[280px] md:min-w-0 snap-start group relative overflow-hidden rounded-2xl shadow-sm bg-card border">
             <div className="relative h-48 w-full">
               <img 
-                src={images?.[idx] || getUnsplashImage(act.name, 'activity')} 
+                src={images?.[idx] || FALLBACK_IMAGE} 
                 alt={act.name} 
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
                 onError={(e) => {
-                   e.currentTarget.src = `https://images.unsplash.com/featured/800x450/?adventure,${encodeURIComponent(act.name)}`;
+                   e.currentTarget.src = FALLBACK_IMAGE;
                 }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
@@ -269,11 +269,11 @@ export function StayRecommendations({ hotels, images }: { hotels: any[]; images?
           <div key={idx} className="min-w-[280px] md:min-w-0 snap-start bg-card border rounded-2xl overflow-hidden hover:shadow-xl transition-all shadow-sm flex flex-col">
             <div className="relative h-48 w-full">
               <img 
-                src={images?.[idx] || getUnsplashImage(hotel.name, 'hotel')} 
+                src={images?.[idx] || FALLBACK_IMAGE} 
                 alt={hotel.name} 
                 className="w-full h-full object-cover" 
                 onError={(e) => {
-                   e.currentTarget.src = `https://images.unsplash.com/featured/800x450/?hotel,luxury,${encodeURIComponent(hotel.name)}`;
+                   e.currentTarget.src = FALLBACK_IMAGE;
                 }}
               />
               <div className="absolute top-3 left-3 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider shadow-sm">

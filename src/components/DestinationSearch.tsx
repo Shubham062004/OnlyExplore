@@ -32,7 +32,7 @@ export function DestinationSearch() {
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
             placeholder="Search destination"
-            className="border-0 shadow-none focus-visible:ring-0 px-0 h-10 text-base md:text-lg bg-transparent"
+            className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-10 text-base md:text-lg bg-transparent focus:ring-0 focus:ring-offset-0 outline-none"
           />
         </div>
         <Button

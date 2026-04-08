@@ -1,7 +1,7 @@
 "use client";
 
 import { DestinationSearch } from "@/components/DestinationSearch";
-import { TrendingDestinations } from "@/components/TrendingDestinations";
+import { HomeCategories } from "@/components/HomeCategories";
 import { PastTrips } from "@/components/PastTrips";
 import { Sidebar } from "@/components/Sidebar";
 import { useRouter } from "next/navigation";
@@ -23,8 +23,8 @@ export default function Home() {
 
         {/* Content Section */}
         <div className="w-full max-w-7xl mx-auto flex-1 pb-12">
-          {/* Trending */}
-          <TrendingDestinations />
+          {/* Category-based exploration */}
+          <HomeCategories />
 
           {/* Past Trips */}
           <PastTrips />

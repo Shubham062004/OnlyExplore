@@ -22,10 +22,13 @@ export const connectDB = async () => {
 
   if (!cached.promise) {
     const opts = {
-      bufferCommands: false,
+      bufferCommands: true,
+      serverSelectionTimeoutMS: 15000, // 15 seconds
+      connectTimeoutMS: 15000,
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
+      console.log('✅ MongoDB Connected');
       return mongoose;
     });
   }

@@ -1,13 +1,8 @@
-import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { generateDestinationGuide } from "@/ai/flows/generateDestinationGuide";
-import {
-  DestinationSkeleton, TripPlannerCTA, DestinationHero, QuickFacts,
-  PopularPlaces, InteractiveMap, AdventureActivities, StayRecommendations,
-  RentalsSection, NearbyDestinations, TravelTips, PackingGuide
-} from "@/components/destination/DestinationComponents";
+import DestinationContent from "./DestinationContent";
 import { DestinationSidebar } from "./DestinationSidebar";
+import { DestinationSkeleton } from "@/components/destination/DestinationComponents";
 import type { Metadata, ResolvingMetadata } from 'next';
 
 export async function generateMetadata(
@@ -61,9 +56,7 @@ export default async function DestinationPage({ params }: { params: Promise<{ sl
       />
       <DestinationSidebar />
       <div className="flex-1 flex flex-col relative h-screen overflow-y-auto w-full">
-        <Suspense fallback={<DestinationSkeleton />}>
-          <DestinationContent destination={titleFormatted} session={session} />
-        </Suspense>
+        <DestinationContent destination={titleFormatted} session={session} />
         
         {/* Footer */}
         <footer className="mt-20 border-t py-12 bg-muted/30">
@@ -83,130 +76,6 @@ export default async function DestinationPage({ params }: { params: Promise<{ sl
           </div>
         </footer>
       </div>
-    </div>
-  );
-}
-
-async function DestinationContent({ destination, session }: { destination: string; session: any }) {
-  const guide = await generateDestinationGuide(destination);
-  const isPremium = session?.user?.plan === 'pro';
-
-  if (!guide) {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center p-8">
-        <h2 className="text-2xl font-bold font-headline mb-4">Content Not Available</h2>
-        <p className="text-muted-foreground bg-muted p-4 rounded-xl text-center shadow-inner">
-          Unable to generate a travel guide for <b>{destination}</b> at this time.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-full pb-12">
-      
-      {/* 1. Hero Section */}
-      <DestinationHero 
-        title={guide.hero?.title || `Explore ${destination}`} 
-        description={guide.hero?.description || `Adventure unscripted. Uncover the magic of ${destination}.`} 
-        destination={destination} 
-        image={guide.images?.hero}
-      />
-
-      <div className="w-full max-w-7xl mx-auto px-4">
-        
-        {/* 2. Quick Facts */}
-        {guide.quickFacts && <QuickFacts facts={guide.quickFacts} />}
-
-        {/* 3. Interactive Map (Premium) */}
-        {isPremium && <InteractiveMap destination={destination} />}
-
-        {/* 4. Popular Places */}
-        {guide.popularPlaces && (
-          <PopularPlaces 
-            places={guide.popularPlaces} 
-            destination={destination} 
-            images={guide.images?.places}
-          />
-        )}
-
-        {/* 5. Trip Planner CTA */}
-        <TripPlannerCTA destination={destination} />
-
-        <div className="w-full">
-          {!isPremium && (
-            <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 text-center my-8 shadow-sm">
-              <h3 className="text-xl font-headline font-bold mb-2">Unlock the Full Experience</h3>
-              <p className="text-muted-foreground mb-4">Upgrade to Pro to access interactive maps, weather forecasts, curated activities, and premium hotel marketplace recommendations for {destination}.</p>
-              <a href="/pricing" className="inline-block bg-primary text-primary-foreground font-medium px-6 py-2 rounded-full hover:bg-primary/90 transition">
-                Upgrade to Pro
-              </a>
-            </div>
-          )}
-
-          {isPremium && (
-            <>
-              {/* 6. Adventure Activities */}
-              {guide.activities && (
-                <AdventureActivities 
-                  activities={guide.activities} 
-                  images={guide.images?.activities}
-                />
-              )}
-
-              {/* 7. Where To Stay & Marketplace */}
-              {guide.hotels ? (
-                <StayRecommendations 
-                  hotels={guide.hotels} 
-                  images={guide.images?.hotels}
-                />
-              ) : (
-                <div className="mb-12">
-                   <h3 className="text-2xl font-headline font-bold mb-6">Hotels & Marketplace Deals</h3>
-                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                     {[1,2,3].map((i) => (
-                       <div key={i} className="bg-card border rounded-2xl p-4 shadow-sm flex flex-col gap-2">
-                         <div className="w-full h-32 bg-muted rounded-xl bg-cover bg-center" style={{ backgroundImage: `url('https://source.unsplash.com/800x600/?hotel,${destination},${i}')` }} />
-                         <h4 className="font-bold text-sm">Luxury Resort {i}</h4>
-                         <p className="text-xs text-muted-foreground line-clamp-1">Downtown {destination}</p>
-                         <div className="flex justify-between items-center mt-2">
-                           <span className="font-bold text-md">₹{4000 * i} <span className="text-[10px] font-normal">/ night</span></span>
-                           <span className="text-[10px] font-medium text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full">★ {4.5 + i * 0.1}</span>
-                         </div>
-                       </div>
-                     ))}
-                   </div>
-                </div>
-              )}
-
-              {/* 8. Rentals */}
-              {guide.rentals && <RentalsSection rentals={guide.rentals} />}
-
-              {/* 9. Travel Tips & Weather */}
-              {guide.travelTips && <TravelTips tips={guide.travelTips} />}
-
-              {/* 10. Packing Guide */}
-              {guide.packingGuide && <PackingGuide items={guide.packingGuide} />}
-            </>
-          )}
-
-          {/* 11. Nearby Destinations */}
-          {guide.nearbyDestinations && (
-            <NearbyDestinations 
-              nearby={guide.nearbyDestinations} 
-              images={guide.images?.hotels}
-            />
-          )}
-
-        </div>
-
-        {/* 10 & 11. Travel Tips & Packing Guide inside a split row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-16 items-stretch">
-          {guide.travelTips && <TravelTips tips={guide.travelTips} />}
-          {guide.packingGuide && <PackingGuide items={guide.packingGuide} />}
-        </div>
-      </div>
-      
     </div>
   );
 }
