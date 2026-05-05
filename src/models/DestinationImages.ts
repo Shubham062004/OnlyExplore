@@ -8,7 +8,7 @@ export interface IDestinationImages extends Document {
 }
 
 const DestinationImagesSchema = new Schema<IDestinationImages>({
-  destination: { type: String, required: true, unique: true, index: true },
+  destination: { type: String, required: true, unique: true },
   heroImage: { type: String, required: true },
   gallery: [{ type: String }],
   lastFetched: { type: Date, default: Date.now },

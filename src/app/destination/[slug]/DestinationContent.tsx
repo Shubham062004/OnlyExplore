@@ -144,12 +144,13 @@ function GallerySection({
 function PopularPlacesWithModal({
   places,
   destination,
-  gallery,
+  placeImages,
   onPlaceClick,
 }: {
   places: PlaceInfo[];
   destination: string;
-  gallery: string[];
+  /** Per-place images from the destination-guide API — index-aligned with places */
+  placeImages: string[];
   onPlaceClick: (place: PlaceInfo) => void;
 }) {
   if (!places || places.length === 0) return null;
@@ -164,7 +165,8 @@ function PopularPlacesWithModal({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {places.map((place, idx) => {
-          const imgSrc = gallery[idx % gallery.length] || FALLBACK_HERO;
+          // Use the specific image for this place from the guide API
+          const imgSrc = (place as any).image || placeImages[idx] || FALLBACK_HERO;
           return (
             <div
               key={idx}
@@ -229,6 +231,7 @@ export default function DestinationContent({
 }) {
   const [guide, setGuide] = useState<any>(null);
   const [images, setImages] = useState<CachedImages | null>(null);
+  const [guideApiData, setGuideApiData] = useState<{ heroImage: string; places: any[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [imagesLoading, setImagesLoading] = useState(true);
   const [selectedPlace, setSelectedPlace] = useState<PlaceInfo | null>(null);
@@ -242,19 +245,23 @@ export default function DestinationContent({
       setImagesLoading(true);
 
       try {
-        // Parallel fetch: AI guide + cached images
-        const [guideData] = await Promise.all([
+        // Parallel fetch: AI guide (text) + guide API (places with images) + gallery images
+        const [guideData, guideApiRes, imgRes] = await Promise.all([
           generateDestinationGuide(destination),
+          fetch(`/api/destination-guide?location=${encodeURIComponent(destination)}`),
+          fetch(`/api/destination-images?destination=${encodeURIComponent(destination)}`),
         ]);
+
         if (!cancelled) {
           setGuide(guideData);
           setLoading(false);
         }
 
-        // Images — separate to not block guide rendering
-        const imgRes = await fetch(
-          `/api/destination-images?destination=${encodeURIComponent(destination)}`
-        );
+        if (guideApiRes.ok && !cancelled) {
+          const guideApiJson = await guideApiRes.json();
+          setGuideApiData(guideApiJson);
+        }
+
         if (imgRes.ok && !cancelled) {
           const imgData = await imgRes.json();
           setImages(imgData);
@@ -294,15 +301,26 @@ export default function DestinationContent({
 
   const isPremium = session?.user?.plan === "pro";
   const gallery = images?.gallery || [];
-  const heroImage = images?.heroImage || FALLBACK_HERO;
+  // Prefer per-place hero from guide API; fall back to gallery hero or static fallback
+  const heroImage = guideApiData?.heroImage || images?.heroImage || FALLBACK_HERO;
 
-  // Build place list from guide, augmented with tags
-  const places: PlaceInfo[] = (guide.popularPlaces || []).map((p: any) => ({
-    name: typeof p === "string" ? p : p.name,
-    description: typeof p === "string" ? undefined : p.description,
-    rating: typeof p === "string" ? undefined : p.rating,
-    tags: typeof p === "string" ? undefined : p.tags,
-  }));
+  // Build place list: merge Genkit guide text with per-place images from the guide API
+  const guideApiPlaces: any[] = guideApiData?.places || [];
+  const places: PlaceInfo[] = guideApiPlaces.length > 0
+    ? guideApiPlaces.map((p: any) => ({
+        name: p.name,
+        description: p.description,
+        image: p.image, // per-place specific image from Unsplash API
+      }))
+    : (guide.popularPlaces || []).map((p: any) => ({
+        name: typeof p === "string" ? p : p.name,
+        description: typeof p === "string" ? undefined : p.description,
+        rating: typeof p === "string" ? undefined : p.rating,
+        tags: typeof p === "string" ? undefined : p.tags,
+      }));
+
+  // Per-place image list (index-aligned) for the card grid
+  const placeImages: string[] = guideApiPlaces.map((p: any) => p.image || FALLBACK_HERO);
 
   const activitiesImages: string[] = [];
   const hotelsImages: string[] = [];
@@ -340,7 +358,7 @@ export default function DestinationContent({
         <PopularPlacesWithModal
           places={places}
           destination={destination}
-          gallery={gallery}
+          placeImages={placeImages}
           onPlaceClick={handlePlaceClick}
         />
 
