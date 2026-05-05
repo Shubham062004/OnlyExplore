@@ -6,7 +6,6 @@ import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import { metrics } from "@/lib/metrics";
 import { applyRateLimit } from "@/lib/rateLimit";
-import { verifyCaptcha } from "@/lib/captcha";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -20,19 +19,9 @@ export const authOptions: NextAuthOptions = {
         emailOrPhone: { label: "Email or Phone", type: "text" },
         password: { label: "Password", type: "password" },
         otp: { label: "OTP", type: "text" },
-        captchaToken: { label: "Captcha", type: "text" },
       },
       async authorize(credentials) {
-        const { emailOrPhone, password, otp, captchaToken } = credentials as any;
-
-        if (!captchaToken) {
-          throw new Error("Missing CAPTCHA. Please complete the verification.");
-        }
-
-        const isValidCaptcha = await verifyCaptcha(captchaToken);
-        if (!isValidCaptcha) {
-          throw new Error("Invalid CAPTCHA");
-        }
+        const { emailOrPhone, password, otp } = credentials as any;
 
         if (!emailOrPhone || !password) {
           metrics.trackAuthAttempt("credentials", false);

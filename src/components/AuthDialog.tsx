@@ -7,12 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Phone, Lock, Hash, UserCircle } from "lucide-react";
-import { Captcha } from "./Captcha";
 
 export function AuthDialog({ children }: { children?: React.ReactNode }) {
     const [isLogin, setIsLogin] = useState(true);
     const [isForgotPassword, setIsForgotPassword] = useState(false);
-    const [captchaToken, setCaptchaToken] = useState("");
 
     // Form fields
     const [emailOrPhone, setEmailOrPhone] = useState("");
@@ -24,7 +22,6 @@ export function AuthDialog({ children }: { children?: React.ReactNode }) {
     const [otpSent, setOtpSent] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
-    const [requiredTwoFactorMethods, setRequiredTwoFactorMethods] = useState<string[]>([]);
 
     const { toast } = useToast();
 
@@ -35,9 +32,7 @@ export function AuthDialog({ children }: { children?: React.ReactNode }) {
             setOtp("");
             setIsForgotPassword(false);
             setIsLogin(true);
-            setRequiredTwoFactorMethods([]);
             setPassword("");
-            setCaptchaToken("");
         }
     };
 
@@ -77,7 +72,7 @@ export function AuthDialog({ children }: { children?: React.ReactNode }) {
             const res = await fetch("/api/auth/forgot-password", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: emailOrPhone, captchaToken })
+                body: JSON.stringify({ email: emailOrPhone })
             });
 
             const data = await res.json();
@@ -95,11 +90,6 @@ export function AuthDialog({ children }: { children?: React.ReactNode }) {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!captchaToken) {
-            toast({ variant: "destructive", title: "Verification required", description: "Please complete the CAPTCHA code." });
-            return;
-        }
-
         setIsLoading(true);
 
         if (isForgotPassword) {
@@ -112,7 +102,6 @@ export function AuthDialog({ children }: { children?: React.ReactNode }) {
             const res = await signIn("credentials", {
                 emailOrPhone,
                 password,
-                captchaToken,
                 otp: otpSent ? otp : "",
                 redirect: false
             });
@@ -135,7 +124,7 @@ export function AuthDialog({ children }: { children?: React.ReactNode }) {
             const res = await fetch("/api/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, emailOrPhone, password, captchaToken }),
+                body: JSON.stringify({ name, emailOrPhone, password }),
             });
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
@@ -232,8 +221,6 @@ export function AuthDialog({ children }: { children?: React.ReactNode }) {
                                 </div>
                             </div>
                         )}
-
-                        <Captcha onVerify={(val) => setCaptchaToken(val)} />
 
                         <Button type="submit" className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/20 transition-all font-semibold" disabled={isLoading}>
                             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
