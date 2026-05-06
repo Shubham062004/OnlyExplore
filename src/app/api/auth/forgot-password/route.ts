@@ -3,20 +3,15 @@ import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import crypto from "crypto";
 import { logger } from "@/lib/logger";
-import { verifyCaptcha } from "@/lib/captcha";
 
 export async function POST(req: Request) {
   try {
-    const { email, captchaToken } = await req.json();
+    const { email } = await req.json();
 
-    if (!email || !captchaToken) {
-      return NextResponse.json({ success: false, error: "Email and Captcha are required" }, { status: 400 });
+    if (!email) {
+      return NextResponse.json({ success: false, error: "Email is required" }, { status: 400 });
     }
 
-    const isValidCaptcha = await verifyCaptcha(captchaToken);
-    if (!isValidCaptcha) {
-      return NextResponse.json({ success: false, error: "Invalid CAPTCHA" }, { status: 400 });
-    }
 
     await connectDB();
 

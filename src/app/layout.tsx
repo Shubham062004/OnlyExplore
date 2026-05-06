@@ -3,11 +3,18 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 
 import { Providers } from '@/components/Providers';
+import { seedUsers } from '@/lib/seedUsers';
 
 export const metadata: Metadata = {
   title: 'Only Explore',
   description: 'Create personalized travel itineraries with our chat-based AI.',
 };
+
+// Seed dev users once at startup (no-op in production)
+if (!(global as any).__devUsersSeedDone) {
+  (global as any).__devUsersSeedDone = true;
+  seedUsers();
+}
 
 export default function RootLayout({
   children,
