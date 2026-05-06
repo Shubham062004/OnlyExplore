@@ -183,25 +183,25 @@ export function TripPlannerCTA({ destination }: { destination: string }) {
           <h3 className="text-3xl md:text-5xl font-bold font-headline mb-4 leading-tight">
             Plan your perfect trip<br />in seconds
           </h3>
-          <p className="text-blue-100 text-base md:text-lg max-w-lg">
+          <p className="text-blue-100 text-base md:text-lg max-w-lg mb-6">
             Our AI crafts personalized daily itineraries based on your interests, budget, and travel style — specific to {destination}.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 mt-8">
-            <Button
-              size="lg"
-              onClick={() => router.push(`/chat?destination=${encodeURIComponent(destination)}`)}
-              className="bg-white text-blue-600 hover:bg-zinc-100 font-bold px-8 h-12 text-base rounded-full shadow-lg"
-            >
-              Generate Full Trip
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-white/30 text-white hover:bg-white/10 font-bold px-8 h-12 text-base bg-transparent rounded-full backdrop-blur-sm"
-              onClick={() => router.push(`/chat?destination=${encodeURIComponent(destination)}&prompt=hotels`)}
-            >
-              Book Hotels
-            </Button>
+          <div className="flex flex-col gap-3">
+            {[
+              `Plan a budget-friendly ${destination} trip with friends`,
+              `Create a 5-day adventure-focused itinerary for ${destination}`,
+              `Suggest a ₹5000 per person budget trip to ${destination}`,
+              `Plan a relaxing ${destination} trip with scenic spots and cafes`,
+              `Build a short 3-day ${destination} itinerary with must-visit places`
+            ].map((text) => (
+              <button
+                key={text}
+                onClick={() => router.push(`/chat?query=${encodeURIComponent(text)}&destination=${encodeURIComponent(destination)}`)}
+                className="px-6 py-3 rounded-full bg-white/20 hover:bg-white/30 transition text-left text-sm font-medium border border-white/10"
+              >
+                {text}
+              </button>
+            ))}
           </div>
         </div>
 
