@@ -8,6 +8,7 @@ import {
   Star, Map as MapIcon, Calendar, Zap, Hotel,
   ChevronRight, Clock, Tag,
 } from "lucide-react";
+import { formatAltitude, getTemperatureRange, formatLocation } from "@/lib/destinations";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1000&auto=format&fit=crop";
@@ -39,20 +40,48 @@ export function DestinationSkeleton() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Quick Facts
 // ─────────────────────────────────────────────────────────────────────────────
-export function QuickFacts({ facts }: { facts: any }) {
+export function QuickFacts({ facts, destination }: { facts: any; destination: string }) {
   if (!facts) return null;
+
+  const altitudeStr = formatAltitude(facts.altitude);
+  const tempObj = getTemperatureRange(destination, facts.temperature || facts.avgTemp);
+  const locationStr = formatLocation(destination, facts.location);
+
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 -mt-16 relative z-30">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 -mt-20 relative z-30">
       {[
-        { icon: <Mountain className="w-5 h-5 text-indigo-500" />, label: "Altitude", value: facts.altitude },
-        { icon: <Calendar className="w-5 h-5 text-orange-500" />, label: "Best Time", value: facts.bestTime },
-        { icon: <Thermometer className="w-5 h-5 text-red-500" />, label: "Avg Temp", value: facts.avgTemp },
-        { icon: <MapPin className="w-5 h-5 text-teal-500" />, label: "Location", value: facts.location },
+        { 
+          icon: <Mountain className="w-6 h-6 text-indigo-500/90 stroke-[1.5]" />, 
+          label: "Altitude", 
+          value: altitudeStr 
+        },
+        { 
+          icon: <Calendar className="w-6 h-6 text-orange-500/90 stroke-[1.5]" />, 
+          label: "Best Time", 
+          value: facts.bestTime || "N/A" 
+        },
+        { 
+          icon: <Thermometer className="w-6 h-6 text-red-500/90 stroke-[1.5]" />, 
+          label: "Temperature", 
+          value: tempObj.formatted 
+        },
+        { 
+          icon: <MapPin className="w-6 h-6 text-teal-500/90 stroke-[1.5]" />, 
+          label: "Location", 
+          value: locationStr 
+        },
       ].map((f, i) => (
-        <div key={i} className="bg-card shadow-xl shadow-black/5 border border-border/50 rounded-2xl p-5 flex flex-col items-start hover:shadow-2xl transition-all">
-          <div className="mb-3">{f.icon}</div>
-          <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">{f.label}</span>
-          <span className="font-semibold text-base text-foreground">{f.value || "N/A"}</span>
+        <div 
+          key={i} 
+          className="bg-card/95 backdrop-blur-xl shadow-2xl shadow-black/10 border border-border/50 rounded-[2rem] p-7 min-h-[140px] flex flex-row items-center justify-between hover:-translate-y-2 hover:shadow-primary/10 transition-all duration-500 group"
+        >
+          <div className="flex flex-col justify-center gap-1.5">
+            <span className="text-[11px] text-muted-foreground uppercase font-bold tracking-[0.2em]">{f.label}</span>
+            <span className="font-extrabold text-lg md:text-xl text-foreground leading-tight">{f.value}</span>
+          </div>
+          <div className="bg-muted/80 p-4 rounded-3xl shrink-0 group-hover:scale-110 group-hover:bg-primary/10 group-hover:text-primary transition-all duration-500">
+            {f.icon}
+          </div>
         </div>
       ))}
     </div>

@@ -219,7 +219,7 @@ export default function DestinationContent({
       <div className="w-full max-w-7xl mx-auto px-4">
 
         {/* 2. Quick Facts ──────────────────────────────────────────────────── */}
-        {guide.quickFacts && <QuickFacts facts={guide.quickFacts} />}
+        {guide.quickFacts && <QuickFacts facts={guide.quickFacts} destination={destination} />}
 
         {/* 3. Photo Gallery ────────────────────────────────────────────────── */}
         {galleryLoading ? (

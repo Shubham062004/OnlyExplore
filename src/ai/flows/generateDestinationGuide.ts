@@ -14,10 +14,10 @@ const DestinationGuideSchema = z.object({
     description: z.string(),
   }).optional(),
   quickFacts: z.object({
-    altitude: z.string().optional(),
+    altitude: z.string().optional().describe("Altitude in meters e.g. '2050'"),
     bestTime: z.string(),
-    avgTemp: z.string().optional(),
-    location: z.string(),
+    temperature: z.string().optional().describe("Temperature range e.g. '-2°C to 18°C'"),
+    location: z.string().describe("Format as 'State, Country' e.g. 'Himachal Pradesh, India'"),
   }),
   popularPlaces: z.array(z.object({
     name: z.string(),
@@ -163,10 +163,10 @@ function buildFallback(destination: string): DestinationGuideData {
       description: `Uncover the hidden gems and breathtaking landscapes of ${destination}.`,
     },
     quickFacts: {
-      altitude: 'Varies',
+      altitude: 'Altitude unavailable',
       bestTime: 'October to March',
-      avgTemp: '20°C',
-      location: 'India',
+      temperature: '15°C to 25°C',
+      location: 'State, India',
     },
     popularPlaces: [
       {
@@ -247,6 +247,9 @@ STRICT RULES:
 - Itinerary: 3–4 days covering the popular places
 - Exactly 6 popularPlaces, 4–6 activities, 4 hotels
 - travelTips and packingGuide must be specific to "${destination}"'s climate and culture
+- quickFacts.altitude MUST be the real altitude in METERS (e.g. "2050")
+- quickFacts.temperature MUST be min and max temperature range (e.g. "12°C to 28°C")
+- quickFacts.location MUST be formatted as "State, Country" (e.g. "Himachal Pradesh, India")
       `,
       output: { schema: DestinationGuideSchema },
     });
