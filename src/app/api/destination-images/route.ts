@@ -5,25 +5,34 @@ import DestinationImages from '@/models/DestinationImages';
 const FALLBACK_HERO =
   'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1600&auto=format&fit=crop';
 
+const CATEGORIES = [
+  { key: 'landscapes', label: 'Scenic View', modifier: 'aerial landscape nature' },
+  { key: 'attractions', label: 'Famous Attraction', modifier: 'landmark heritage tourism' },
+  { key: 'activities', label: 'Adventure', modifier: 'adventure sports activity' },
+  { key: 'cafes', label: 'Food & Cafes', modifier: 'cafe restaurant street food' },
+  { key: 'stays', label: 'Luxury Stay', modifier: 'resort hotel boutique homestay' },
+  { key: 'culture', label: 'Local Culture', modifier: 'culture people tradition market' },
+];
+
 async function fetchUnsplashImages(
   query: string,
-  perPage = 8,
+  perPage = 5,
   accessKey: string
 ): Promise<string[]> {
   const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(
     query
   )}&per_page=${perPage}&orientation=landscape&client_id=${accessKey}`;
 
-  const res = await fetch(url, { next: { revalidate: 0 } });
-  if (!res.ok) return [];
+  try {
+    const res = await fetch(url, { next: { revalidate: 3600 } });
+    if (!res.ok) return [];
 
-  const data = await res.json();
-  return (data.results || []).map(
-    (img: any) =>
-      img.urls?.regular ||
-      img.urls?.small ||
-      `https://images.unsplash.com/featured/800x600/?${encodeURIComponent(query)}`
-  );
+    const data = await res.json();
+    return (data.results || []).map((img: any) => img.urls?.regular || img.urls?.small);
+  } catch (error) {
+    console.error(`Unsplash fetch error for query "${query}":`, error);
+    return [];
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -35,76 +44,80 @@ export async function GET(req: NextRequest) {
   }
 
   const key = destination.toLowerCase().trim();
-  const ACCESS_KEY =
-    process.env.UNSPLASH_ACCESS_KEY || process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY || '';
+  const ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY || process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY || '';
 
   try {
     await connectDB();
 
-    // ─── STEP 1: Check DB cache ───────────────────────────────────────────────
+    // 1. Check Cache
     const existing = await DestinationImages.findOne({ destination: key });
     if (existing) {
+      // Handle backward compatibility for string[] gallery
+      const formattedGallery = existing.gallery.map((item: any) => 
+        typeof item === 'string' ? { url: item, label: 'Experience' } : item
+      );
+
       return NextResponse.json({
         destination: existing.destination,
         heroImage: existing.heroImage,
-        gallery: existing.gallery,
+        gallery: formattedGallery,
         fromCache: true,
       });
     }
 
-    // ─── STEP 2: Fetch from Unsplash ─────────────────────────────────────────
     if (!ACCESS_KEY) throw new Error('UNSPLASH_ACCESS_KEY not configured');
 
-    const [heroImages, touristImages, attractionImages, cultureImages] = await Promise.all([
-      fetchUnsplashImages(`${destination} city landscape`, 2, ACCESS_KEY),
-      fetchUnsplashImages(`${destination} tourist places`, 3, ACCESS_KEY),
-      fetchUnsplashImages(`${destination} attractions`, 3, ACCESS_KEY),
-      fetchUnsplashImages(`${destination} culture`, 2, ACCESS_KEY),
-    ]);
+    // 2. Fetch Hero Image (Landscapes)
+    const heroPool = await fetchUnsplashImages(`${destination} cinematic travel landscape`, 3, ACCESS_KEY);
+    const heroImage = heroPool[0] || FALLBACK_HERO;
 
-    const heroImage = heroImages[0] || FALLBACK_HERO;
+    // 3. Fetch Categorized Gallery
+    const galleryItems: { url: string; label: string }[] = [];
+    const usedUrls = new Set<string>([heroImage]);
 
-    // Combine gallery images (dedup) — 6–8 images
-    const galleryPool = [
-      ...heroImages.slice(1),
-      ...touristImages,
-      ...attractionImages,
-      ...cultureImages,
-    ];
-    const uniqueGallery = [...new Set(galleryPool)].slice(0, 8);
+    // Fetch in parallel for speed
+    const categoryResults = await Promise.all(
+      CATEGORIES.map(async (cat) => {
+        const results = await fetchUnsplashImages(`${destination} ${cat.modifier}`, 3, ACCESS_KEY);
+        return results.map(url => ({ url, label: cat.label }));
+      })
+    );
 
-    const gallery =
-      uniqueGallery.length > 0
-        ? uniqueGallery
-        : [
-            `https://images.unsplash.com/featured/800x600/?${encodeURIComponent(destination)},landmark`,
-            `https://images.unsplash.com/featured/800x600/?${encodeURIComponent(destination)},nature`,
-          ];
+    // Merge with deduplication and order
+    for (const results of categoryResults) {
+      for (const item of results) {
+        if (!usedUrls.has(item.url) && galleryItems.length < 12) {
+          galleryItems.push(item);
+          usedUrls.add(item.url);
+        }
+      }
+    }
 
-    // ─── STEP 3: Save to MongoDB ──────────────────────────────────────────────
+    // Fallback if empty
+    if (galleryItems.length === 0) {
+      galleryItems.push({ 
+        url: `https://images.unsplash.com/featured/800x600/?${encodeURIComponent(destination)},travel`, 
+        label: 'Destination' 
+      });
+    }
+
+    // 4. Save to Cache
     await DestinationImages.create({
       destination: key,
       heroImage,
-      gallery,
+      gallery: galleryItems,
       lastFetched: new Date(),
     });
 
-    // ─── STEP 4: Return ───────────────────────────────────────────────────────
-    return NextResponse.json({ destination: key, heroImage, gallery, fromCache: false });
+    return NextResponse.json({ destination: key, heroImage, gallery: galleryItems, fromCache: false });
   } catch (error) {
     console.error('destination-images API error:', error);
-
-    // Graceful fallback — never break the UI
     return NextResponse.json({
       destination: key,
       heroImage: FALLBACK_HERO,
-      gallery: [
-        `https://images.unsplash.com/featured/800x600/?${encodeURIComponent(key)},travel`,
-        `https://images.unsplash.com/featured/800x600/?${encodeURIComponent(key)},landmark`,
-        `https://images.unsplash.com/featured/800x600/?${encodeURIComponent(key)},nature`,
-      ],
+      gallery: [{ url: FALLBACK_HERO, label: 'Explore' }],
       fromCache: false,
-      fallback: true,
+      error: true
     });
   }
 }

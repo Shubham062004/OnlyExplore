@@ -25,9 +25,14 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
+interface GalleryItem {
+  url: string;
+  label: string;
+}
+
 interface GalleryImages {
   heroImage: string;
-  gallery: string[];
+  gallery: GalleryItem[];
 }
 
 const FALLBACK_HERO =
@@ -86,39 +91,54 @@ function GallerySection({
   gallery,
   destination,
 }: {
-  gallery: string[];
+  gallery: GalleryItem[];
   destination: string;
 }) {
   const [failedIdx, setFailedIdx] = useState<Set<number>>(new Set());
   if (!gallery || gallery.length === 0) return null;
 
   return (
-    <div className="mt-12 mb-8">
-      <h3 className="text-2xl font-bold font-headline mb-5">Photo Gallery</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {gallery.map((imgSrc, idx) => {
+    <div className="mt-20 mb-16">
+      <div className="flex flex-col mb-8">
+        <h3 className="text-3xl md:text-4xl font-black font-headline uppercase tracking-tighter">Experience Gallery</h3>
+        <p className="text-muted-foreground font-medium">A curated visual journey through the best of {destination}.</p>
+      </div>
+      
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+        {gallery.map((item, idx) => {
           const failed = failedIdx.has(idx);
           return (
             <div
               key={idx}
-              className={`relative overflow-hidden rounded-2xl bg-muted group cursor-pointer ${idx === 0 ? "col-span-2 row-span-2 h-72" : "h-36"
-                }`}
+              className={`relative overflow-hidden rounded-[2rem] bg-muted group cursor-pointer border border-border/50 shadow-xl shadow-black/5 ${
+                idx === 0 ? "col-span-2 row-span-2 h-[320px] md:h-[480px]" : "h-[150px] md:h-[230px]"
+              }`}
             >
               {failed ? (
                 <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground">
-                  <ImageOff className="w-6 h-6" />
+                  <ImageOff className="w-8 h-8 opacity-20" />
                 </div>
               ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={imgSrc}
-                  alt={`${destination} gallery ${idx + 1}`}
-                  loading="lazy"
-                  onError={() => setFailedIdx((p) => new Set([...p, idx]))}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                />
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.url}
+                    alt={`${destination} ${item.label}`}
+                    loading="lazy"
+                    onError={() => setFailedIdx((p) => new Set([...p, idx]))}
+                    className="w-full h-full object-cover transition-all duration-700 ease-out group-hover:scale-110 group-hover:rotate-1"
+                  />
+                  {/* Overlay Gradient */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  
+                  {/* Label Tag */}
+                  <div className="absolute bottom-4 left-4 md:bottom-6 md:left-6 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-75">
+                    <span className="bg-white/20 backdrop-blur-md border border-white/30 text-white text-[10px] md:text-xs font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full">
+                      {item.label}
+                    </span>
+                  </div>
+                </>
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </div>
           );
         })}
