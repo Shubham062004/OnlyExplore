@@ -251,8 +251,8 @@ export default function DestinationContent({
           <GallerySection gallery={gallery?.gallery || []} destination={destination} />
         )}
 
-        {/* 4. Interactive Map (Pro only) ───────────────────────────────────── */}
-        {isPremium && <InteractiveMap destination={destination} />}
+        {/* 4. Map Explorer (Interactive) ─────────────────────────────────────── */}
+        {isPremium && <MapExplorer guide={guide} destination={destination} />}
 
         {/* 5. Popular Places ───────────────────────────────────────────────── */}
         {guide.popularPlaces && (

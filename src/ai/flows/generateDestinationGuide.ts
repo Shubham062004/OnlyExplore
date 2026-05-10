@@ -24,6 +24,13 @@ const DestinationGuideSchema = z.object({
     description: z.string().describe('max 15 words'),
     bestFor: z.array(z.string()).optional(),
     imageQuery: z.string().describe('specific Unsplash query e.g. "Solang Valley Manali snow"'),
+    coordinates: z.object({
+      lat: z.number(),
+      lng: z.number(),
+    }).optional(),
+    category: z.string().optional().describe('e.g. Attraction, Scenic Point, Hidden Gem'),
+    rating: z.number().optional().describe('4.0-5.0'),
+    duration: z.string().optional().describe('e.g. 2-3 hours'),
   })),
   activities: z.array(z.object({
     name: z.string(),
@@ -31,6 +38,13 @@ const DestinationGuideSchema = z.object({
     location: z.string().optional(),
     bestSeason: z.string().optional(),
     imageQuery: z.string().describe('specific Unsplash query e.g. "paragliding Manali mountains"'),
+    coordinates: z.object({
+      lat: z.number(),
+      lng: z.number(),
+    }).optional(),
+    category: z.literal('Adventure'),
+    rating: z.number().optional(),
+    duration: z.string().optional().describe('e.g. 1 hour'),
   })),
   hotels: z.array(z.object({
     name: z.string(),
@@ -38,6 +52,11 @@ const DestinationGuideSchema = z.object({
     price: z.string().optional().describe('e.g. ₹4200/night'),
     rating: z.number().optional().describe('0-5'),
     imageQuery: z.string().describe('specific Unsplash query e.g. "Manali luxury hotel mountain view"'),
+    coordinates: z.object({
+      lat: z.number(),
+      lng: z.number(),
+    }).optional(),
+    category: z.literal('Stay'),
   })),
   itinerary: z.array(z.object({
     day: z.number(),
@@ -250,6 +269,10 @@ STRICT RULES:
 - quickFacts.altitude MUST be the real altitude in METERS (e.g. "2050")
 - quickFacts.temperature MUST be min and max temperature range (e.g. "12°C to 28°C")
 - quickFacts.location MUST be formatted as "State, Country" (e.g. "Himachal Pradesh, India")
+- Every popularPlace, activity, and hotel MUST include realistic lat/lng coordinates for "${destination}"
+- popularPlaces should have diverse categories (Attraction, Cafe, Scenic Point, Hidden Gem, Market)
+- Ratings should be realistic (4.2 to 4.9)
+- duration should be realistic for the activity/place (e.g. "45 mins", "2-3 hours")
       `,
       output: { schema: DestinationGuideSchema },
     });
