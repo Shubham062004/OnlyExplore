@@ -49,7 +49,7 @@ function DestinationHero({
   useEffect(() => setSrc(heroImage || FALLBACK_HERO), [heroImage]);
 
   return (
-    <div className="relative w-full h-[480px] md:h-[560px] flex items-end overflow-hidden rounded-b-[2.5rem]">
+    <div className="relative w-full h-[520px] md:h-[640px] flex items-end overflow-hidden rounded-b-[3rem] md:rounded-b-[4rem]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
@@ -58,19 +58,19 @@ function DestinationHero({
         className="absolute inset-0 w-full h-full object-cover"
         loading="eager"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
-      <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent" />
 
-      <div className="relative z-10 w-full px-6 md:px-12 pb-12 md:pb-16">
-        <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 text-white text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full mb-4">
-            <MapPin className="w-3 h-3 text-primary" />
-            Destination Guide
+      <div className="relative z-10 w-full px-6 md:px-16 pb-24 md:pb-32">
+        <div className="max-w-4xl">
+          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 text-white text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] px-4 py-2 rounded-full mb-6">
+            <MapPin className="w-3.5 h-3.5 text-primary" />
+            Travel Destination Guide
           </div>
-          <h1 className="text-5xl md:text-7xl font-bold font-headline text-white drop-shadow-xl leading-none uppercase mb-4">
+          <h1 className="text-5xl md:text-8xl font-black font-headline text-white drop-shadow-2xl leading-[0.9] uppercase mb-6 tracking-tighter">
             {title}
           </h1>
-          <p className="text-lg md:text-xl text-zinc-200 max-w-xl font-medium drop-shadow-md">
+          <p className="text-lg md:text-2xl text-zinc-200 max-w-2xl font-medium drop-shadow-lg leading-relaxed opacity-90">
             {description}
           </p>
         </div>

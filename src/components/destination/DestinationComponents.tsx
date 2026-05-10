@@ -18,20 +18,15 @@ const FALLBACK_IMAGE =
 // ─────────────────────────────────────────────────────────────────────────────
 export function DestinationSkeleton() {
   return (
-    <div className="w-full flex-col space-y-8 pb-12">
-      <Skeleton className="w-full h-[420px] bg-zinc-200 dark:bg-zinc-800" />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-7xl mx-auto px-4 -mt-16 relative z-10">
+    <div className="w-full flex-col space-y-12 pb-12">
+      <Skeleton className="w-full h-[520px] md:h-[640px] rounded-b-[3rem] md:rounded-b-[4rem] bg-zinc-200 dark:bg-zinc-800" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl mx-auto px-6 -mt-20 relative z-30">
         {[...Array(4)].map((_, i) => (
-          <Skeleton key={i} className="h-24 rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+          <Skeleton key={i} className="h-32 rounded-[2.5rem] bg-zinc-200 dark:bg-zinc-800" />
         ))}
       </div>
-      <div className="max-w-7xl mx-auto px-4 w-full">
-        <Skeleton className="w-full h-[280px] rounded-2xl mt-8 bg-zinc-200 dark:bg-zinc-800" />
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 max-w-7xl mx-auto px-4 mt-8">
-        {[...Array(4)].map((_, i) => (
-          <Skeleton key={i} className="h-64 rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
-        ))}
+      <div className="max-w-7xl mx-auto px-6 w-full">
+        <Skeleton className="w-full h-[320px] rounded-[3rem] mt-12 bg-zinc-200 dark:bg-zinc-800" />
       </div>
     </div>
   );
@@ -48,38 +43,38 @@ export function QuickFacts({ facts, destination }: { facts: any; destination: st
   const locationStr = formatLocation(destination, facts.location);
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 -mt-20 relative z-30">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 -mt-12 md:-mt-16 relative z-30 px-2">
       {[
         { 
-          icon: <Mountain className="w-6 h-6 text-indigo-500/90 stroke-[1.5]" />, 
+          icon: <Mountain className="w-7 h-7 text-indigo-500/90 stroke-[1.5]" />, 
           label: "Altitude", 
           value: altitudeStr 
         },
         { 
-          icon: <Calendar className="w-6 h-6 text-orange-500/90 stroke-[1.5]" />, 
+          icon: <Calendar className="w-7 h-7 text-orange-500/90 stroke-[1.5]" />, 
           label: "Best Time", 
           value: facts.bestTime || "N/A" 
         },
         { 
-          icon: <Thermometer className="w-6 h-6 text-red-500/90 stroke-[1.5]" />, 
+          icon: <Thermometer className="w-7 h-7 text-red-500/90 stroke-[1.5]" />, 
           label: "Temperature", 
           value: tempObj.formatted 
         },
         { 
-          icon: <MapPin className="w-6 h-6 text-teal-500/90 stroke-[1.5]" />, 
+          icon: <MapPin className="w-7 h-7 text-teal-500/90 stroke-[1.5]" />, 
           label: "Location", 
           value: locationStr 
         },
       ].map((f, i) => (
         <div 
           key={i} 
-          className="bg-card/95 backdrop-blur-xl shadow-2xl shadow-black/10 border border-border/50 rounded-[2rem] p-7 min-h-[140px] flex flex-row items-center justify-between hover:-translate-y-2 hover:shadow-primary/10 transition-all duration-500 group"
+          className="bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.08)] border border-white/40 dark:border-white/5 rounded-[2.5rem] p-8 md:p-9 min-h-[160px] flex flex-row items-center justify-between hover:-translate-y-3 hover:shadow-primary/10 transition-all duration-700 ease-out group cursor-default"
         >
-          <div className="flex flex-col justify-center gap-1.5">
-            <span className="text-[11px] text-muted-foreground uppercase font-bold tracking-[0.2em]">{f.label}</span>
-            <span className="font-extrabold text-lg md:text-xl text-foreground leading-tight">{f.value}</span>
+          <div className="flex flex-col justify-center gap-2">
+            <span className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.3em] opacity-60 leading-none">{f.label}</span>
+            <span className="font-black text-xl md:text-2xl text-foreground leading-none tracking-tight">{f.value}</span>
           </div>
-          <div className="bg-muted/80 p-4 rounded-3xl shrink-0 group-hover:scale-110 group-hover:bg-primary/10 group-hover:text-primary transition-all duration-500">
+          <div className="bg-primary/5 p-5 rounded-[2rem] shrink-0 group-hover:scale-110 group-hover:bg-primary/10 group-hover:text-primary transition-all duration-700 ease-out flex items-center justify-center">
             {f.icon}
           </div>
         </div>
