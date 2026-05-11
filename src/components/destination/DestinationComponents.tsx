@@ -12,7 +12,10 @@ import {
   ArrowRight, ExternalLink, Heart, Share2,
   Navigation, Info, Compass, Coffee,
   Sun, Snowflake, Wind, Award, ShieldCheck,
-  Wifi, Waves, Tv, Utensils, Trees, Tent
+  Wifi, Waves, Tv, Utensils, Trees, Tent,
+  AlertTriangle, CheckCircle2, ShieldAlert, HeartPulse,
+  Briefcase, Camera, Wallet, PhoneCall, Check,
+  Activity, HelpCircle, AlertCircle
 } from "lucide-react";
 import { formatAltitude, getTemperatureRange, formatLocation } from "@/lib/destinations";
 import { ExplorerPoint } from "@/lib/explorer";
@@ -1022,58 +1025,144 @@ export function StayRecommendations({
 // ─────────────────────────────────────────────────────────────────────────────
 export function ItinerarySection({ 
   itinerary, 
-  destination 
+  destination,
+  onLocationClick
 }: { 
   itinerary: any[]; 
-  destination: string 
+  destination: string;
+  onLocationClick?: (name: string) => void;
 }) {
+  const [expandedDay, setExpandedDay] = useState<number | null>(1);
+
   if (!itinerary || itinerary.length === 0) return null;
 
+  const getVibeIcon = (vibe: string) => {
+    switch (vibe) {
+      case 'Adventure-packed': return <Zap className="w-4 h-4" />;
+      case 'Relaxed': return <Coffee className="w-4 h-4" />;
+      case 'Cultural': return <Users className="w-4 h-4" />;
+      case 'Scenic': return <Mountain className="w-4 h-4" />;
+      default: return <Compass className="w-4 h-4" />;
+    }
+  };
+
+  const getTransportIcon = (type?: string) => {
+    const t = type?.toLowerCase() || '';
+    if (t.includes('cab') || t.includes('taxi')) return <Hotel className="w-3.5 h-3.5" />; // Using Hotel as Car fallback
+    if (t.includes('bike') || t.includes('scooter')) return <Wind className="w-3.5 h-3.5" />;
+    if (t.includes('walking') || t.includes('trekking')) return <Navigation className="w-3.5 h-3.5" />;
+    return <Clock className="w-3.5 h-3.5" />;
+  };
+
   return (
-    <div className="space-y-12 mt-32 relative">
+    <div className="space-y-12 mt-32 relative scroll-mt-32" id="itinerary">
       <div className="flex flex-col items-center text-center space-y-4 mb-16">
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-500/10 text-indigo-500 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-indigo-500/20">
-          <Calendar className="w-4 h-4" /> Perfect Itinerary
+          <Calendar className="w-4 h-4" /> Smart AI Planner
         </div>
-        <h3 className="text-4xl md:text-6xl font-black font-headline uppercase tracking-tighter">
-          Your <span className="text-primary">Day-by-Day</span> Journey
+        <h3 className="text-4xl md:text-7xl font-black font-headline uppercase tracking-tighter leading-[0.85]">
+          Your <span className="text-primary">Optimized</span> Journey
         </h3>
         <p className="text-muted-foreground max-w-2xl font-medium text-lg leading-relaxed">
-          A masterfully curated route through {destination}, balancing adventure, culture, and relaxation.
+          A high-performance route through {destination}, optimized for distance, timing, and immersive experiences.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 relative">
-        {itinerary.map((day, idx) => (
-          <div
-            key={idx}
-            className="group relative bg-card border border-border/50 rounded-[3rem] p-8 hover:shadow-2xl transition-all duration-500 shadow-xl shadow-black/5 flex flex-col"
-          >
-            {/* Day Number */}
-            <div className="w-16 h-16 rounded-[1.5rem] bg-primary/10 text-primary font-black text-2xl flex items-center justify-center mb-6 group-hover:bg-primary group-hover:text-white transition-all duration-500 shadow-inner">
-              {day.day}
-            </div>
-            
-            <h4 className="font-black font-headline uppercase text-xl mb-6 leading-none tracking-tight group-hover:text-primary transition-colors">
-              {day.title}
-            </h4>
-            
-            <div className="space-y-4 flex-1">
-              {(day.places as string[]).map((place: string, i: number) => (
-                <div key={i} className="flex items-start gap-3 text-sm text-muted-foreground group/item">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary/30 mt-1.5 shrink-0 group-hover/item:bg-primary transition-colors" />
-                  <span className="font-medium group-hover/item:text-foreground transition-colors">{place}</span>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+        {/* Days Navigation */}
+        <div className="lg:col-span-4 space-y-4">
+          {itinerary.map((day, idx) => (
+            <button
+              key={idx}
+              onClick={() => setExpandedDay(day.day)}
+              className={`w-full text-left p-6 rounded-[2rem] border transition-all duration-500 flex items-center gap-6 group ${
+                expandedDay === day.day 
+                ? "bg-primary text-white border-primary shadow-2xl shadow-primary/20 scale-[1.02]" 
+                : "bg-card border-border/50 hover:border-primary/30 hover:bg-muted/50"
+              }`}
+            >
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl transition-colors ${
+                expandedDay === day.day ? "bg-white/20" : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white"
+              }`}>
+                {day.day}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className={`flex items-center gap-2 text-[9px] font-black uppercase tracking-widest mb-1 ${
+                  expandedDay === day.day ? "text-white/70" : "text-primary"
+                }`}>
+                  {getVibeIcon(day.vibe)}
+                  {day.vibe} • {day.duration || 'Full Day'}
                 </div>
-              ))}
-            </div>
+                <h4 className="font-black font-headline uppercase text-lg leading-tight truncate">{day.title}</h4>
+              </div>
+            </button>
+          ))}
+        </div>
 
-            <div className="mt-8 pt-6 border-t border-border/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-               <button className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2 hover:underline">
-                 Explore Locations <ArrowRight className="w-3.5 h-3.5" />
-               </button>
+        {/* Expanded Timeline View */}
+        <div className="lg:col-span-8 bg-card border border-border/50 rounded-[3.5rem] p-8 md:p-12 shadow-2xl shadow-black/5 min-h-[600px] relative overflow-hidden group/timeline">
+          {itinerary.map((day) => day.day === expandedDay && (
+            <div key={day.day} className="animate-in fade-in slide-in-from-right-8 duration-700">
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12 border-b border-border/50 pb-8">
+                <div>
+                  <h4 className="text-3xl md:text-5xl font-black font-headline uppercase tracking-tighter text-primary">{day.title}</h4>
+                  <div className="flex flex-wrap gap-4 mt-4">
+                    {day.places.map((p: string, i: number) => (
+                      <button 
+                        key={i} 
+                        onClick={() => onLocationClick?.(p)}
+                        className="text-[10px] font-black uppercase tracking-widest bg-muted px-3 py-1 rounded-full border border-border/50 hover:bg-primary hover:text-white transition-all"
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                   <div className="text-muted-foreground text-[10px] font-black uppercase tracking-widest mb-1">Recommended Vibe</div>
+                   <div className="flex items-center gap-2 text-primary font-black uppercase tracking-widest text-xs justify-end">
+                      {getVibeIcon(day.vibe)} {day.vibe}
+                   </div>
+                </div>
+              </div>
+
+              {/* Timeline Track */}
+              <div className="space-y-12 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gradient-to-b before:from-primary before:via-primary/20 before:to-transparent">
+                {day.schedule?.map((item: any, i: number) => (
+                  <div key={i} className="relative pl-12 group/item">
+                    {/* Node */}
+                    <div className="absolute left-0 top-1 w-6 h-6 rounded-full border-4 border-background bg-primary shadow-lg z-10 group-hover/item:scale-125 transition-transform duration-300" />
+                    
+                    <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-10">
+                      <div className="w-24 shrink-0">
+                         <div className="text-sm font-black font-headline text-primary mb-1">{item.time}</div>
+                         {item.duration && <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">{item.duration}</div>}
+                      </div>
+                      
+                      <div className="flex-1 space-y-3">
+                         <div className="flex items-center gap-3">
+                            <h5 className="text-xl font-black font-headline uppercase tracking-tight group-hover/item:text-primary transition-colors">{item.activity}</h5>
+                            {item.transport && (
+                              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/5 border border-primary/10 text-[9px] font-black text-primary uppercase tracking-widest">
+                                {getTransportIcon(item.transport)}
+                                {item.transport}
+                              </div>
+                            )}
+                         </div>
+                         <p className="text-muted-foreground text-sm font-medium leading-relaxed max-w-xl">
+                            {item.details}
+                         </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+
+          {/* Decorative Background */}
+          <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
+        </div>
       </div>
     </div>
   );
@@ -1082,61 +1171,92 @@ export function ItinerarySection({
 // ─────────────────────────────────────────────────────────────────────────────
 // Rentals
 // ─────────────────────────────────────────────────────────────────────────────
-export function RentalsSection({ rentals }: { rentals: any[] }) {
-  if (!rentals || rentals.length === 0) return null;
-  return (
-    <div className="space-y-6 mt-16">
-      <h3 className="text-2xl font-bold font-headline">Rentals & Transport</h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {rentals.map((rental, idx) => (
-          <div key={idx} className="bg-card border rounded-2xl p-5 text-center shadow-sm hover:shadow-lg transition-all flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <Tag className="w-5 h-5 text-primary" />
-            </div>
-            <h4 className="font-bold text-sm">{rental.type}</h4>
-            <p className="text-sm text-primary font-bold">{rental.cost}/day</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+export function RentalsSection({ rentals, onViewDetails }: { rentals: any[]; onViewDetails?: (place: any) => void }) {
+  const [filter, setFilter] = useState('All');
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Nearby Destinations
-// ─────────────────────────────────────────────────────────────────────────────
-export function NearbyDestinations({ nearby, destination }: { nearby: any[]; destination: string }) {
-  if (!nearby || nearby.length === 0) return null;
+  if (!rentals || rentals.length === 0) return null;
+
+  const categories = ['All', 'Bike', 'Scooter', 'Cab', 'Self Drive', 'Adventure Gear'];
+  const filteredRentals = filter === 'All' ? rentals : rentals.filter(r => r.type === filter);
+
   return (
-    <div className="space-y-10 mt-32">
-      <div className="space-y-2">
-        <h3 className="text-3xl md:text-4xl font-black font-headline uppercase tracking-tighter">Beyond the Horizon</h3>
-        <p className="text-muted-foreground font-medium">Extend your journey to these stunning nearby locations</p>
+    <div className="space-y-12 mt-32 relative scroll-mt-32" id="rentals">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
+        <div className="space-y-4 max-w-2xl">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-primary/20">
+            <Zap className="w-4 h-4" /> Mobility & Execution
+          </div>
+          <h3 className="text-4xl md:text-7xl font-black font-headline uppercase tracking-tighter leading-[0.85]">
+            Rentals & <span className="text-primary">Transport</span>
+          </h3>
+          <p className="text-muted-foreground font-medium text-lg leading-relaxed">
+            Verified local services to help you navigate with total freedom.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2 lg:justify-end">
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setFilter(cat)}
+              className={`px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all duration-300 ${
+                filter === cat 
+                ? "bg-primary text-white border-primary shadow-lg" 
+                : "bg-muted/50 text-muted-foreground border-border hover:border-primary/50"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
       </div>
-      
+
       <PremiumCarousel>
-        {nearby.map((place, idx) => (
-          <div key={idx} className="min-w-[280px] md:min-w-[320px] bg-card border border-border/50 rounded-[3rem] overflow-hidden hover:shadow-2xl transition-all duration-500 group shadow-xl shadow-black/5 flex-none">
+        {filteredRentals.map((rental, idx) => (
+          <div 
+            key={idx} 
+            onClick={() => onViewDetails?.(rental)}
+            className="group relative flex-none w-[300px] sm:w-[350px] bg-card border border-border/50 rounded-[3rem] overflow-hidden transition-all duration-500 hover:shadow-2xl shadow-xl shadow-black/5 flex flex-col h-full cursor-pointer"
+          >
             <div className="h-44 relative overflow-hidden bg-muted">
               <img
-                src={safeImageResolver(place.image, `${place.name} ${destination}`)}
-                alt={place.name}
+                src={safeImageResolver(rental.image, `${rental.name} ${rental.type}`)}
+                alt={rental.name}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                 onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-60" />
-              <div className="absolute bottom-4 left-6">
-                 <div className="flex items-center gap-2 text-white/90">
+              <div className="absolute top-4 left-4">
+                 <div className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest">
+                   {rental.type}
+                 </div>
+              </div>
+              <div className="absolute bottom-4 left-6 right-6 flex items-end justify-between">
+                 <div className="flex items-center gap-1.5 text-white/90">
                     <MapPin className="w-3.5 h-3.5" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">{place.distance || 'Nearby'}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest">{rental.location || 'Local'}</span>
+                 </div>
+                 <div className="flex items-center gap-1 bg-emerald-500 text-white px-2 py-0.5 rounded-lg text-[9px] font-black">
+                    <Star className="w-3 h-3 fill-current" /> {rental.rating?.toFixed(1) || '4.5'}
                  </div>
               </div>
             </div>
-            <div className="p-8">
-              <h4 className="font-black font-headline uppercase text-xl leading-none group-hover:text-primary transition-colors">{place.name}</h4>
-              <Button variant="link" className="p-0 h-auto mt-4 text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all">
-                Explore Destination <ChevronRight className="w-3.5 h-3.5" />
-              </Button>
+
+            <div className="p-8 space-y-4 flex-1 flex flex-col">
+              <div className="flex-1">
+                <h4 className="font-black font-headline uppercase text-xl leading-none group-hover:text-primary transition-colors mb-2">{rental.name}</h4>
+                <p className="text-xs text-muted-foreground font-medium line-clamp-2">{rental.bestFor || 'Best for local exploration and scenic routes.'}</p>
+              </div>
+              
+              <div className="pt-6 border-t border-border/50 flex items-center justify-between">
+                <div>
+                  <div className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Starting from</div>
+                  <div className="text-primary font-black text-xl leading-none">{rental.cost}</div>
+                </div>
+                <Button className="rounded-full font-black uppercase tracking-widest text-[9px] h-9 px-6 bg-primary hover:bg-primary/90 text-white">
+                  Book Now
+                </Button>
+              </div>
             </div>
           </div>
         ))}
@@ -1146,55 +1266,316 @@ export function NearbyDestinations({ nearby, destination }: { nearby: any[]; des
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Travel Tips
+// Beyond The Horizon (Nearby & Similar)
 // ─────────────────────────────────────────────────────────────────────────────
-export function TravelTips({ tips }: { tips: string[] }) {
-  if (!tips || tips.length === 0) return null;
+function DestinationCard({ data, onClick }: { data: any, onClick: () => void }) {
   return (
-    <div className="bg-card border border-border/50 rounded-[3rem] p-10 shadow-xl shadow-black/5 h-full space-y-8">
-      <div className="space-y-2">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-500/10 text-blue-500 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-blue-500/20">
-          <Compass className="w-3.5 h-3.5" /> Essential Advice
+    <div 
+      onClick={onClick}
+      className="group relative flex-none w-[300px] sm:w-[380px] bg-card border border-border/50 rounded-[3.5rem] overflow-hidden transition-all duration-700 hover:shadow-2xl shadow-xl shadow-black/5 flex flex-col h-full cursor-pointer"
+    >
+      <div className="h-56 relative overflow-hidden bg-muted">
+        <img
+          src={safeImageResolver(data.image, data.imageQuery || data.name)}
+          alt={data.name}
+          className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+        
+        {/* Category Tag */}
+        <div className="absolute top-6 left-6">
+           <div className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">
+             {data.category || 'Discovery'}
+           </div>
         </div>
-        <h3 className="text-3xl font-black font-headline uppercase tracking-tighter">Pro Travel Tips</h3>
-      </div>
-      <div className="space-y-6">
-        {tips.map((tip, idx) => (
-          <div key={idx} className="flex gap-4 items-start group">
-            <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center text-xs font-black group-hover:bg-blue-500 group-hover:text-white transition-all duration-300">
-              {idx + 1}
-            </div>
-            <p className="text-sm text-muted-foreground leading-relaxed font-medium pt-1 group-hover:text-foreground transition-colors">{tip}</p>
+
+        {/* Distance / Time Overlay */}
+        {data.roadDistance && (
+          <div className="absolute bottom-6 left-6 flex items-center gap-4">
+             <div className="flex items-center gap-1.5 text-white/90 bg-black/20 backdrop-blur-sm px-3 py-1 rounded-full border border-white/10">
+                <MapPin className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-black uppercase tracking-widest">{data.roadDistance}</span>
+             </div>
+             {data.driveTime && (
+                <div className="flex items-center gap-1.5 text-white/90 bg-black/20 backdrop-blur-sm px-3 py-1 rounded-full border border-white/10">
+                   <Clock className="w-3.5 h-3.5" />
+                   <span className="text-[10px] font-black uppercase tracking-widest">{data.driveTime}</span>
+                </div>
+             )}
           </div>
-        ))}
+        )}
+      </div>
+
+      <div className="p-8 space-y-6 flex-1 flex flex-col">
+        <div>
+           <div className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-2">{data.state || 'EXPLORE'}</div>
+           <h4 className="font-black font-headline uppercase text-2xl leading-none group-hover:text-primary transition-colors">{data.name}</h4>
+        </div>
+
+        {/* Vibe Tags */}
+        <div className="flex flex-wrap gap-2">
+           {data.vibeTags?.slice(0, 2).map((tag: string, i: number) => (
+             <span key={i} className="text-[9px] font-bold text-muted-foreground bg-muted px-3 py-1 rounded-full border border-border/50">
+               {tag}
+             </span>
+           ))}
+        </div>
+
+        <div className="pt-6 border-t border-border/50 flex items-center justify-between mt-auto">
+           <div className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+              Best in {data.bestSeason || 'Spring'}
+           </div>
+           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all duration-500 shadow-lg shadow-primary/10">
+              <ArrowRight className="w-5 h-5" />
+           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function BeyondTheHorizon({ 
+  nearby, 
+  similar,
+  destination 
+}: { 
+  nearby: any[]; 
+  similar: any[];
+  destination: string 
+}) {
+  const router = useRouter();
+
+  const handleNavigate = (name: string) => {
+    const slug = name.toLowerCase().replace(/\s+/g, '-');
+    router.push(`/destination/${slug}`);
+  };
+
+  return (
+    <div className="space-y-32 mt-32 relative scroll-mt-32" id="beyond">
+      {/* Nearby Destinations */}
+      {nearby && nearby.length > 0 && (
+        <div className="space-y-12">
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
+            <div className="space-y-4 max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-primary/20">
+                <MapPin className="w-4 h-4" /> Road Trip Worthy
+              </div>
+              <h3 className="text-4xl md:text-7xl font-black font-headline uppercase tracking-tighter leading-[0.85]">
+                Nearby <span className="text-primary">Explorations</span>
+              </h3>
+              <p className="text-muted-foreground font-medium text-lg leading-relaxed">
+                Continue your journey to these stunning locations just a short drive from {destination}.
+              </p>
+            </div>
+          </div>
+
+          <PremiumCarousel>
+            {nearby.map((place, idx) => (
+              <DestinationCard key={idx} data={place} onClick={() => handleNavigate(place.name)} />
+            ))}
+          </PremiumCarousel>
+        </div>
+      )}
+
+      {/* Similar Vibes */}
+      {similar && similar.length > 0 && (
+        <div className="space-y-12">
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
+            <div className="space-y-4 max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-500/10 text-indigo-500 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-indigo-500/20">
+                <Compass className="w-4 h-4" /> Intelligent Matches
+              </div>
+              <h3 className="text-4xl md:text-7xl font-black font-headline uppercase tracking-tighter leading-[0.85]">
+                Similar <span className="text-primary">Vibes</span>
+              </h3>
+              <p className="text-muted-foreground font-medium text-lg leading-relaxed">
+                If you loved {destination}, these destinations around the world share the same travel soul.
+              </p>
+            </div>
+          </div>
+
+          <PremiumCarousel>
+            {similar.map((place, idx) => (
+              <DestinationCard key={idx} data={place} onClick={() => handleNavigate(place.name)} />
+            ))}
+          </PremiumCarousel>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Travel Preparation System
+// ─────────────────────────────────────────────────────────────────────────────
+export function TravelPreparation({ 
+  tips, 
+  packing, 
+  alerts,
+  destination 
+}: { 
+  tips: any[]; 
+  packing: any[]; 
+  alerts: any[];
+  destination: string 
+}) {
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const saved = localStorage.getItem(`packing-${destination}`);
+    if (saved) setCheckedItems(JSON.parse(saved));
+  }, [destination]);
+
+  const toggleItem = (itemName: string) => {
+    const newChecked = { ...checkedItems, [itemName]: !checkedItems[itemName] };
+    setCheckedItems(newChecked);
+    localStorage.setItem(`packing-${destination}`, JSON.stringify(newChecked));
+  };
+
+  const totalItems = packing.reduce((acc, cat) => acc + cat.items.length, 0);
+  const checkedCount = Object.values(checkedItems).filter(Boolean).length;
+  const progress = totalItems > 0 ? (checkedCount / totalItems) * 100 : 0;
+
+  return (
+    <div className="space-y-24 mt-32 relative scroll-mt-32" id="preparation">
+      {/* Header */}
+      <div className="flex flex-col items-center text-center space-y-4 mb-16">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-500/20">
+          <ShieldCheck className="w-4 h-4" /> Destination Mastery
+        </div>
+        <h3 className="text-4xl md:text-7xl font-black font-headline uppercase tracking-tighter leading-[0.85]">
+          Ready for <span className="text-primary">Execution</span>
+        </h3>
+        <p className="text-muted-foreground max-w-2xl font-medium text-lg leading-relaxed">
+          Everything you need to know and pack to navigate {destination} like a local pro.
+        </p>
+      </div>
+
+      {/* Safety Alerts Grid */}
+      {alerts && alerts.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {alerts.map((alert, i) => (
+            <div key={i} className={`p-6 rounded-[2.5rem] border flex items-start gap-4 transition-all hover:scale-[1.02] ${
+              alert.severity === 'High' ? "bg-red-500/5 border-red-500/20" : 
+              alert.severity === 'Medium' ? "bg-orange-500/5 border-orange-500/20" : 
+              "bg-blue-500/5 border-blue-500/20"
+            }`}>
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+                alert.severity === 'High' ? "bg-red-500/10 text-red-500" : 
+                alert.severity === 'Medium' ? "bg-orange-500/10 text-orange-500" : 
+                "bg-blue-500/10 text-blue-500"
+              }`}>
+                {alert.type === 'Weather' ? <Snowflake className="w-5 h-5" /> : 
+                 alert.type === 'Altitude' ? <Activity className="w-5 h-5" /> : 
+                 alert.type === 'Transit' ? <Navigation className="w-5 h-5" /> : 
+                 <ShieldAlert className="w-5 h-5" />}
+              </div>
+              <div>
+                <div className="text-[9px] font-black uppercase tracking-widest mb-1 opacity-70">{alert.type} Warning</div>
+                <p className="text-sm font-bold leading-snug">{alert.message}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+        {/* Packing Checklist */}
+        <div className="lg:col-span-7 space-y-8 bg-card border border-border/50 rounded-[3.5rem] p-8 md:p-12 shadow-2xl shadow-black/5">
+           <div className="flex items-center justify-between gap-6 flex-wrap">
+              <div className="flex items-center gap-4">
+                 <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                    <Briefcase className="w-6 h-6" />
+                 </div>
+                 <h4 className="text-2xl font-black font-headline uppercase">Packing Checklist</h4>
+              </div>
+              <div className="flex flex-col items-end">
+                 <div className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">{Math.round(progress)}% Ready</div>
+                 <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${progress}%` }} />
+                 </div>
+              </div>
+           </div>
+
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mt-10">
+              {packing.map((cat, i) => (
+                <div key={i} className="space-y-4">
+                   <h5 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary" /> {cat.category}
+                   </h5>
+                   <div className="space-y-3">
+                      {cat.items.map((item: any, j: number) => (
+                        <button
+                          key={j}
+                          onClick={() => toggleItem(item.name)}
+                          className="flex items-start gap-3 w-full text-left group"
+                        >
+                          <div className={`mt-0.5 w-5 h-5 rounded-md border transition-all flex items-center justify-center shrink-0 ${
+                            checkedItems[item.name] 
+                            ? "bg-primary border-primary text-white" 
+                            : "bg-muted/50 border-border group-hover:border-primary/50"
+                          }`}>
+                            {checkedItems[item.name] && <Check className="w-3.5 h-3.5 stroke-[4]" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                             <div className={`text-sm font-bold transition-all ${checkedItems[item.name] ? "text-muted-foreground line-through opacity-50" : "text-foreground"}`}>
+                                {item.name}
+                             </div>
+                             {item.priority === 'Essential' && !checkedItems[item.name] && (
+                               <span className="text-[8px] font-black text-red-500 uppercase tracking-widest">Crucial</span>
+                             )}
+                          </div>
+                        </button>
+                      ))}
+                   </div>
+                </div>
+              ))}
+           </div>
+        </div>
+
+        {/* Pro Travel Tips */}
+        <div className="lg:col-span-5 space-y-8">
+           {tips.map((group, i) => (
+              <div key={i} className="bg-muted/30 border border-border/50 rounded-[2.5rem] p-8 hover:bg-muted/50 transition-colors group">
+                 <div className="flex items-center gap-4 mb-6">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
+                       {group.category.includes('Transport') ? <Navigation className="w-5 h-5" /> : 
+                        group.category.includes('ATM') || group.category.includes('Cash') ? <Wallet className="w-5 h-5" /> : 
+                        group.category.includes('Safety') ? <ShieldCheck className="w-5 h-5" /> : 
+                        <Info className="w-5 h-5" />}
+                    </div>
+                    <h5 className="font-black font-headline uppercase text-lg group-hover:text-primary transition-colors">{group.category}</h5>
+                 </div>
+                 <div className="space-y-4">
+                    {group.tips.map((tip: string, j: number) => (
+                       <div key={j} className="flex items-start gap-3 text-sm text-muted-foreground font-medium">
+                          <div className="w-1 h-1 rounded-full bg-primary mt-2 shrink-0" />
+                          <p className="leading-relaxed">{tip}</p>
+                       </div>
+                    ))}
+                 </div>
+              </div>
+           ))}
+
+           {/* Emergency Quick Action */}
+           <div className="bg-primary text-white p-8 rounded-[2.5rem] shadow-2xl shadow-primary/20 flex items-center justify-between group cursor-pointer overflow-hidden relative">
+              <div className="relative z-10">
+                 <h5 className="text-xl font-black font-headline uppercase leading-none mb-1">Need Urgent Help?</h5>
+                 <p className="text-white/70 text-xs font-bold uppercase tracking-widest">Local Emergency Services</p>
+              </div>
+              <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center relative z-10 group-hover:scale-110 transition-transform">
+                 <PhoneCall className="w-6 h-6" />
+              </div>
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl" />
+           </div>
+        </div>
       </div>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Packing Guide
+// Legacy Components
 // ─────────────────────────────────────────────────────────────────────────────
-export function PackingGuide({ items }: { items: string[] }) {
-  if (!items || items.length === 0) return null;
-  return (
-    <div className="bg-card border border-border/50 rounded-[3rem] p-10 shadow-xl shadow-black/5 h-full space-y-8">
-      <div className="space-y-2">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 text-emerald-500 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-500/20">
-          <Zap className="w-3.5 h-3.5" /> Smart Prep
-        </div>
-        <h3 className="text-3xl font-black font-headline uppercase tracking-tighter">Packing Checklist</h3>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {items.map((item, idx) => (
-          <div key={idx} className="flex items-center gap-3 p-4 bg-muted/30 hover:bg-muted/50 rounded-2xl border border-border/50 transition-all group">
-            <div className="w-6 h-6 rounded-lg border-2 border-emerald-500/30 flex items-center justify-center bg-white dark:bg-zinc-900 group-hover:border-emerald-500 group-hover:bg-emerald-500 transition-all duration-300 shrink-0 shadow-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500 group-hover:text-white"><path d="M20 6 9 17l-5-5" /></svg>
-            </div>
-            <span className="text-xs font-black uppercase tracking-widest text-muted-foreground group-hover:text-foreground transition-colors">{item}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+export function TravelTips({ tips }: { tips: string[] }) { return null; }
+export function PackingGuide({ items }: { items: string[] }) { return null; }

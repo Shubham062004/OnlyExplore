@@ -211,6 +211,18 @@ export default function DestinationContent({
   const handlePlaceClick = useCallback((place: any) => setSelectedPlace(place), []);
   const handleModalClose = useCallback(() => setSelectedPlace(null), []);
 
+  const handleLocationClick = useCallback((name: string) => {
+    // Look for place in explorerPoints, activities, or hotels
+    const place = 
+      explorerPoints.find(p => p.name.toLowerCase() === name.toLowerCase()) ||
+      guide?.activities?.find(a => a.name.toLowerCase() === name.toLowerCase()) ||
+      guide?.hotels?.find(h => h.name.toLowerCase() === name.toLowerCase());
+    
+    if (place) {
+      handlePlaceClick(place);
+    }
+  }, [explorerPoints, guide, handlePlaceClick]);
+
   if (loading) return <DestinationSkeleton />;
 
   if (!guide) {
@@ -326,26 +338,38 @@ export default function DestinationContent({
               <ItinerarySection
                 itinerary={guide.itinerary}
                 destination={destination}
+                onLocationClick={handleLocationClick}
               />
             )}
 
             {/* Rentals */}
             {guide.rentals && guide.rentals.length > 0 && (
-              <RentalsSection rentals={guide.rentals} />
+              <RentalsSection 
+                rentals={guide.rentals} 
+                onViewDetails={handlePlaceClick}
+              />
             )}
           </>
         )}
 
-        {/* Nearby (all users) */}
-        {guide.nearbyDestinations && guide.nearbyDestinations.length > 0 && (
-          <NearbyDestinations nearby={guide.nearbyDestinations} destination={destination} />
+        {/* Nearby & Similar */}
+        {(guide.nearbyDestinations || guide.similarDestinations) && (
+          <BeyondTheHorizon 
+            nearby={guide.nearbyDestinations || []} 
+            similar={guide.similarDestinations || []} 
+            destination={destination} 
+          />
         )}
 
-        {/* 10. Tips + Packing ──────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-16 items-stretch">
-          {guide.travelTips && <TravelTips tips={guide.travelTips} />}
-          {guide.packingGuide && <PackingGuide items={guide.packingGuide} />}
-        </div>
+        {/* 10. Preparation System */}
+        {(guide.travelTips || guide.packingGuide) && (
+          <TravelPreparation 
+            tips={guide.travelTips || []} 
+            packing={guide.packingGuide || []} 
+            alerts={guide.safetyAlerts || []}
+            destination={destination}
+          />
+        )}
 
       </div>
 

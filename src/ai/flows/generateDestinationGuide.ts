@@ -4,10 +4,24 @@ import { z } from 'genkit';
 import { connectDB } from '@/lib/mongodb';
 import DestinationGuide from '@/models/DestinationGuide';
 import { fetchPremiumImage, generateContextualQuery } from '@/lib/imageService';
+import { DestinationService, RealPlace } from '@/lib/destinationService';
+import { format } from 'date-fns';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Schema — imageQuery on every visual item; image is attached after fetch
 // ─────────────────────────────────────────────────────────────────────────────
+const DestinationRecommendationSchema = z.object({
+  name: z.string(),
+  state: z.string().optional(),
+  roadDistance: z.string().optional(),
+  driveTime: z.string().optional(),
+  category: z.string().optional(),
+  vibeTags: z.array(z.string()).optional(),
+  bestSeason: z.string().optional(),
+  imageQuery: z.string().optional(),
+  coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
+});
+
 const DestinationGuideSchema = z.object({
   destination: z.string(),
   hero: z.object({
@@ -15,57 +29,48 @@ const DestinationGuideSchema = z.object({
     description: z.string(),
   }).optional(),
   quickFacts: z.object({
-    altitude: z.string().optional().describe("Altitude in meters e.g. '2050'"),
+    altitude: z.string().optional(),
     bestTime: z.string(),
-    temperature: z.string().optional().describe("Temperature range e.g. '-2°C to 18°C'"),
-    location: z.string().describe("Format as 'State, Country' e.g. 'Himachal Pradesh, India'"),
+    temperature: z.string().optional(),
+    location: z.string(),
   }),
   popularPlaces: z.array(z.object({
     name: z.string(),
-    description: z.string().describe('max 15 words'),
+    description: z.string(),
     tags: z.array(z.string()).optional(),
-    imageQuery: z.string().describe('specific Unsplash query e.g. "Solang Valley Manali snow"'),
-    coordinates: z.object({
-      lat: z.number(),
-      lng: z.number(),
-    }).optional(),
-    category: z.string().optional().describe('e.g. Attraction, Scenic Point, Hidden Gem'),
-    rating: z.number().optional().describe('4.0-5.0'),
-    duration: z.string().optional().describe('e.g. 2-3 hours'),
-    bestTime: z.string().optional().describe('e.g. Early Morning, Sunset, April-June'),
+    imageQuery: z.string(),
+    coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
+    category: z.string().optional(),
+    rating: z.number().optional(),
+    duration: z.string().optional(),
+    bestTime: z.string().optional(),
   })),
   activities: z.array(z.object({
     name: z.string(),
-    description: z.string().describe('max 15 words'),
-    price: z.string().optional().describe('e.g. ₹1500'),
+    description: z.string(),
+    price: z.string().optional(),
     location: z.string().optional(),
     season: z.enum(['Summer', 'Winter', 'All-Season']),
     difficulty: z.enum(['Easy', 'Moderate', 'Challenging']),
     intensity: z.enum(['Low', 'Medium', 'High']),
-    imageQuery: z.string().describe('specific Unsplash query e.g. "paragliding Manali mountains"'),
-    coordinates: z.object({
-      lat: z.number(),
-      lng: z.number(),
-    }).optional(),
-    category: z.string().describe('e.g. Adventure, Relaxation, Culture'),
+    imageQuery: z.string(),
+    coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
+    category: z.string(),
     rating: z.number().optional(),
-    duration: z.string().optional().describe('e.g. 1 hour'),
-    bestFor: z.array(z.string()).optional().describe('e.g. Couples, Families, Adrenaline Junkies'),
-    timing: z.string().optional().describe('e.g. 6:00 AM - 10:00 AM'),
+    duration: z.string().optional(),
+    bestFor: z.array(z.string()).optional(),
+    timing: z.string().optional(),
   })),
   hotels: z.array(z.object({
     name: z.string(),
-    description: z.string().describe('max 15 words'),
-    type: z.string().describe('e.g. Luxury Resort, Boutique Hotel, Backpacker Hostel, Homestay'),
-    priceRange: z.string().describe('e.g. ₹5000 - ₹8000'),
-    rating: z.number().optional().describe('0-5'),
-    imageQuery: z.string().describe('specific Unsplash query e.g. "Manali luxury hotel mountain view"'),
-    coordinates: z.object({
-      lat: z.number(),
-      lng: z.number(),
-    }).optional(),
-    amenities: z.array(z.string()).describe('e.g. ["Wifi", "Mountain View", "Pool"]'),
-    bestFor: z.array(z.string()).describe('e.g. ["Couples", "Solo Travelers"]'),
+    description: z.string(),
+    type: z.string(),
+    priceRange: z.string(),
+    rating: z.number().optional(),
+    imageQuery: z.string(),
+    coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
+    amenities: z.array(z.string()),
+    bestFor: z.array(z.string()),
     category: z.literal('Stay'),
     tags: z.array(z.string()).optional(),
   })),
@@ -73,17 +78,43 @@ const DestinationGuideSchema = z.object({
     day: z.number(),
     title: z.string(),
     places: z.array(z.string()),
+    vibe: z.enum(['Relaxed', 'Adventure-packed', 'Cultural', 'Scenic']),
+    duration: z.string(),
+    schedule: z.array(z.object({
+      time: z.string(),
+      activity: z.string(),
+      duration: z.string().optional(),
+      transport: z.string().optional(),
+      details: z.string(),
+    })),
   })).optional(),
   rentals: z.array(z.object({
-    type: z.string(),
-    cost: z.string(),
-  })),
-  nearbyDestinations: z.array(z.object({
     name: z.string(),
-    distance: z.string().optional(),
+    type: z.enum(['Bike', 'Scooter', 'Cab', 'Self Drive', 'Adventure Gear', 'Trekking Guide']),
+    cost: z.string(),
+    rating: z.number(),
+    location: z.string(),
+    bestFor: z.string(),
+    imageQuery: z.string(),
   })),
-  travelTips: z.array(z.string()),
-  packingGuide: z.array(z.string()),
+  nearbyDestinations: z.array(DestinationRecommendationSchema),
+  similarDestinations: z.array(DestinationRecommendationSchema),
+  travelTips: z.array(z.object({
+    category: z.string(),
+    tips: z.array(z.string()),
+  })),
+  packingGuide: z.array(z.object({
+    category: z.string(),
+    items: z.array(z.object({
+      name: z.string(),
+      priority: z.enum(['Essential', 'Recommended', 'Optional']),
+    })),
+  })),
+  safetyAlerts: z.array(z.object({
+    type: z.enum(['Weather', 'Altitude', 'Transit', 'Safety']),
+    message: z.string(),
+    severity: z.enum(['Low', 'Medium', 'High']),
+  })),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -316,10 +347,19 @@ function buildFallback(destination: string): DestinationGuideData {
       },
     ],
     itinerary: [
-      { day: 1, title: 'Arrival & Iconic Sights', places: [popularPlaces[0].name] },
-      { day: 2, title: 'Local Culture & Markets', places: [popularPlaces[1]?.name || 'Local Market'] },
+      { 
+        day: 1, 
+        title: 'Arrival & Iconic Sights', 
+        places: [popularPlaces[0].name],
+        vibe: 'Relaxed',
+        duration: '8 hours',
+        schedule: [
+          { time: '09:00 AM', activity: 'Arrival & Hotel Check-in', transport: 'Cab', details: 'Check into your stay and freshen up for the adventure.' },
+          { time: '11:00 AM', activity: `Explore ${popularPlaces[0].name}`, transport: 'Walking', details: 'Visit the most iconic landmark of the destination.' },
+        ]
+      },
     ],
-    rentals: [{ type: 'Scooter / Bike Rental', cost: '₹600' }],
+    rentals: [{ name: 'Local Bike Hub', type: 'Bike', cost: '₹800/day', rating: 4.5, location: 'City Center', bestFor: 'Mountain exploration', imageQuery: 'Royal Enfield bike' }],
     nearbyDestinations: isManali ? [{ name: 'Kasol', distance: '75 km' }, { name: 'Rohtang Pass', distance: '51 km' }] : [],
     travelTips: ['Carry valid ID', 'Respect local traditions', 'Check weather before transit'],
     packingGuide: ['Comfortable walking shoes', 'Layered clothing', 'Universal power adapter'],
@@ -330,9 +370,11 @@ function buildFallback(destination: string): DestinationGuideData {
 // Main export
 // ─────────────────────────────────────────────────────────────────────────────
 export async function generateDestinationGuide(
-  destination: string
+  destination: string,
+  tripType: 'General' | 'Couple' | 'Family' | 'Solo' | 'Luxury' | 'Adventure' = 'General'
 ): Promise<DestinationGuideData> {
   const cacheKey = destination.toLowerCase().trim();
+  const currentMonth = format(new Date(), 'MMMM');
 
   // ── 1. Check MongoDB cache ─────────────────────────────────────────────────
   try {
@@ -349,47 +391,151 @@ export async function generateDestinationGuide(
     console.warn('⚠️ MongoDB cache read failed:', dbError);
   }
 
-  // ── 2. Generate with Gemini ────────────────────────────────────────────────
+  // ── 2. Stage 1: Intelligence Brainstorming (Gemini) ────────────────────────
   try {
-    console.log('🤖 Generating guide for:', destination);
+    console.log('🤖 Brainstorming intelligence for:', destination, `(Season: ${currentMonth})`);
 
-    const { output } = await ai.generate({
+    const { output: brainstorm } = await ai.generate({
       prompt: `
-You are a professional travel guide API for premium destinations.
-Generate a factually accurate, immersive travel guide for "${destination}".
+You are a high-level travel strategist. 
+For "${destination}" in ${currentMonth}, identify:
+1. The exact coordinates (Lat/Lng) of the destination center.
+2. A list of 10-15 REAL names of top attractions and hidden gems.
+3. A list of 10-15 REAL names of best hotels/hostels across all budgets.
+4. A list of 5-8 REAL names of local rental businesses (Bike, Cab, Gear).
+5. A list of 10 REAL activities suited for ${currentMonth}.
+6. A list of 5-8 REAL nearby destinations (geographically close, road-trip relevant).
+7. A list of 5-8 REAL similar destinations globally (similar vibe, mountain/beach type).
 
 STRICT RULES:
-- All places, activities, hotels MUST be real and specific to "${destination}"
-- imageQuery MUST be highly contextual and descriptive (e.g. "Solang Valley Manali snow paragliding adventure", "Old Manali cafe vibe river side")
-- Exactly 8-12 popularPlaces (MUST include: famous attractions, hidden gems, local cafes, shopping areas, scenic spots)
-- Exactly 12-15 activities:
-  - Generate a diverse mix of Summer, Winter, and All-Season experiences.
-  - Categories should include: Adventure, Relaxation, Culture, Food, Nature.
-  - Include specific details like difficulty, intensity, and "best for" tags.
-  - For snowy destinations (like Manali), ensure a strong split between summer trekking/paragliding and winter skiing/snowboarding.
-- Exactly 12-15 hotels (Stay category):
-  - Diversify accommodation types: Luxury Resorts, Boutique Hotels, Backpacker Hostels, Homestays, Cabins, Cottages, Glamping.
-  - Include realistic priceRange (e.g. "₹800 - ₹2500" for hostels, "₹15000+" for luxury).
-  - List 4-6 key amenities per stay.
-  - Specify "bestFor" tags (e.g. Couples, Families, Solo Travelers, Remote Work).
-  - Descriptions should be immersive and highlight the unique selling point.
-- Itinerary: 3–5 days covering the most iconic and interesting places
-- travelTips and packingGuide must be specific to "${destination}"'s climate and culture
-- quickFacts.altitude MUST be the real altitude in METERS (e.g. "2050")
-- quickFacts.temperature MUST be min and max temperature range (e.g. "12°C to 28°C")
-- quickFacts.location MUST be formatted as "State, Country" (e.g. "Himachal Pradesh, India")
-- EVERY item (place, activity, hotel) MUST include realistic lat/lng coordinates for "${destination}"
-- popularPlaces categories: MUST use one of [Attraction, Cafe, Adventure, Spiritual, Food, Stay, Hidden Gem, Shopping, Scenic Point]
-- Ratings should be realistic (4.2 to 4.9)
-- duration should be realistic (e.g. "45 mins", "2-3 hours", "Full Day")
-- descriptions: exactly 10-15 words, evocative and inviting.
+- Only return REAL, verified businesses and locations.
+- No generic filler names.
+- Focus on what's active and best in ${currentMonth}.
+      `,
+      output: { 
+        schema: z.object({
+          center: z.object({ lat: z.number(), lng: z.number() }),
+          attractionNames: z.array(z.string()),
+          hotelNames: z.array(z.string()),
+          rentalNames: z.array(z.string()),
+          activityNames: z.array(z.string()),
+          nearbyNames: z.array(z.string()),
+          similarNames: z.array(z.string()),
+        }) 
+      },
+    });
+
+    if (!brainstorm) throw new Error('Brainstorming failed');
+
+    // ── 3. Stage 2: Real-World Data Enrichment (Google Places) ────────────────
+    console.log('🔍 Fetching real-world data from Google Places...');
+    
+    const [realAttractions, realHotels, realRentals, realNearby, realSimilar] = await Promise.all([
+      Promise.all(brainstorm.attractionNames.slice(0, 10).map(name => DestinationService.searchPlaces(`${name} ${destination}`, brainstorm.center))),
+      Promise.all(brainstorm.hotelNames.slice(0, 10).map(name => DestinationService.searchPlaces(`${name} ${destination}`, brainstorm.center))),
+      Promise.all(brainstorm.rentalNames.slice(0, 6).map(name => DestinationService.searchPlaces(`${name} ${destination}`, brainstorm.center))),
+      Promise.all(brainstorm.nearbyNames.slice(0, 6).map(name => DestinationService.searchPlaces(name, brainstorm.center))),
+      Promise.all(brainstorm.similarNames.slice(0, 6).map(name => DestinationService.searchPlaces(name))),
+    ]);
+
+    // Flatten and clean
+    const rentals = realRentals.flat().filter((p, i, self) => self.findIndex(t => t.placeId === p.placeId) === i).slice(0, 6);
+    const nearbyRaw = realNearby.flat().filter((p, i, self) => self.findIndex(t => t.placeId === p.placeId) === i).slice(0, 6);
+    const similarRaw = realSimilar.flat().filter((p, i, self) => self.findIndex(t => t.placeId === p.placeId) === i).slice(0, 6);
+
+    // ── 4. Stage 2.1: Real Distance Enrichment (Distance Matrix) ──────────────
+    console.log('🚗 Calculating real road distances for nearby destinations...');
+    const nearbyWithDistance = await Promise.all(nearbyRaw.map(async (n) => {
+      const travel = await DestinationService.getTravelInfo(destination, n.name);
+      return {
+        ...n,
+        roadDistance: travel?.distance || 'Nearby',
+        driveTime: travel?.duration || 'Various'
+      };
+    }));
+
+    // ── 5. Stage 2.5: Deep Detail & Review Enrichment ────────────────────────
+    console.log('📝 Extracting real visitor sentiment for top spots...');
+    const topSpotsDetails = await Promise.all(
+      attractions.slice(0, 5).map(async (a) => {
+        const details = await DestinationService.getPlaceDetails(a.placeId);
+        return { name: a.name, reviews: details?.reviews || [] };
+      })
+    );
+
+    // ── 5. Stage 2.6: Nearby Contextual Discovery (Cafes/POIs) ────────────────
+    console.log('📍 Discovering local neighborhood context...');
+    const nearbyCafes = await Promise.all(
+      attractions.slice(0, 3).map(a => DestinationService.fetchNearby(a.coordinates, 'cafe', 1000))
+    );
+    const cafes = nearbyCafes.flat().slice(0, 5);
+
+    // ── 6. Stage 3: Itinerary Optimization ─────────────────────────────────────
+    console.log('🗺️ Optimizing itinerary clusters...');
+    const dayClusters = await DestinationService.optimizeItineraryDays(attractions, 3);
+
+    // ── 7. Stage 4: Final Assembly (Gemini) ────────────────────────────────────
+    console.log(`✍️ Finalizing ${tripType}-focused guide with deep real data...`);
+    const { output } = await ai.generate({
+      prompt: `
+Synthesize a premium travel guide for "${destination}" specifically for a ${tripType} trip using this REAL-WORLD data:
+- Center: ${JSON.stringify(brainstorm.center)}
+- Attractions & Sentiment: ${JSON.stringify(topSpotsDetails)}
+- All Attractions: ${JSON.stringify(attractions.map(a => ({ name: a.name, rating: a.rating, coords: a.coordinates })))}
+- Nearby Cafes: ${JSON.stringify(cafes.map(c => ({ name: c.name, rating: c.rating })))}
+- Nearby Destinations: ${JSON.stringify(nearbyWithDistance.map(n => ({ name: n.name, dist: n.roadDistance, time: n.driveTime })))}
+- Similar Destinations: ${JSON.stringify(similarRaw.map(s => ({ name: s.name })))}
+- Hotels: ${JSON.stringify(hotels.map(h => ({ name: h.name, rating: h.rating, coords: h.coordinates })))}
+- Rentals: ${JSON.stringify(rentals.map(r => ({ name: r.name, rating: r.rating })))}
+
+REQUIREMENTS:
+- Descriptions: Generate context-aware descriptions based on the provided visitor sentiment (reviews). Avoid generic filler.
+- Itinerary: Create a 3-day itinerary tailored for a ${tripType} traveler.
+  - Day 1 Cluster: ${JSON.stringify(dayClusters[0]?.map(p => p.name))}
+  - Day 2 Cluster: ${JSON.stringify(dayClusters[1]?.map(p => p.name))}
+  - Day 3 Cluster: ${JSON.stringify(dayClusters[2]?.map(p => p.name))}
+- Nearby/Similar Cards: Enrich with contextual "vibeTags" (e.g. Backpacker Paradise, Snow Destination, Luxury Escape), "bestSeason", and "category".
+- Preparation System:
+  - Generate a SMART PACKING CHECKLIST categorized by [Clothing, Footwear, Electronics, Medicines, Documents, Hygiene, Gear].
+  - Assign priorities (Essential/Recommended/Optional) to each item based on ${currentMonth} in ${destination}.
+  - Provide PRACTICAL Travel Tips categorized by [Local Transport, Road Conditions, ATM/Network, Customs, Safety].
+  - Include REAL safety alerts (Sudden weather changes, altitude sensitivity, network dead-zones).
+- Ensure all timings, transport recommendations, and vibes are logically sound for ${currentMonth}.
       `,
       output: { schema: DestinationGuideSchema },
     });
 
-    if (!output) throw new Error('Empty Gemini output');
+    if (!output) throw new Error('Final synthesis failed');
 
-    // ── 3. Enrich with Unsplash images ────────────────────────────────────────
+    // ── 6. Stage 5: Real Travel Time Enrichment ───────────────────────────────
+    console.log('⏱️ Enriching itinerary with real travel times...');
+    if (output.itinerary) {
+      for (const day of output.itinerary) {
+        if (day.schedule && day.schedule.length > 1) {
+          for (let i = 0; i < day.schedule.length - 1; i++) {
+            const current = day.schedule[i];
+            const next = day.schedule[i+1];
+            
+            // Try to find the real travel info
+            try {
+              const travel = await DestinationService.getTravelInfo(
+                `${current.activity} ${destination}`,
+                `${next.activity} ${destination}`,
+                current.transport?.toLowerCase().includes('walk') ? 'walking' : 'driving'
+              );
+              
+              if (travel) {
+                // Update the current item to mention travel to next
+                current.details = `${current.details} (Travel: ${travel.duration} to ${next.activity})`.slice(0, 150);
+              }
+            } catch (e) {
+              console.warn(`Travel enrichment failed for ${current.activity} -> ${next.activity}`);
+            }
+          }
+        }
+      }
+    }
+    // ── 6. Enrich with Unsplash images ────────────────────────────────────────
     const enriched = await enrichWithImages(output);
 
     // ── 4. Persist to cache ───────────────────────────────────────────────────
