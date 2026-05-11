@@ -10,17 +10,17 @@ import {
   Star, Map as MapIcon, Calendar, Zap, Hotel,
   ChevronRight, ChevronLeft, Clock, Tag,
   ArrowRight, ExternalLink, Heart, Share2,
-  Navigation, Info, Compass, Coffee
+  Navigation, Info, Compass, Coffee,
+  Sun, Snowflake, Wind, Award, ShieldCheck,
+  Wifi, Waves, Tv, Utensils, Trees, Tent
 } from "lucide-react";
 import { formatAltitude, getTemperatureRange, formatLocation } from "@/lib/destinations";
 import { ExplorerPoint } from "@/lib/explorer";
+import { safeImageResolver } from "@/lib/imageUtils";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1000&auto=format&fit=crop";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Skeleton
-// ─────────────────────────────────────────────────────────────────────────────
 export function DestinationSkeleton() {
   return (
     <div className="w-full flex-col space-y-12 pb-12">
@@ -37,9 +37,6 @@ export function DestinationSkeleton() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Quick Facts
-// ─────────────────────────────────────────────────────────────────────────────
 export function QuickFacts({ facts, destination }: { facts: any; destination: string }) {
   if (!facts) return null;
 
@@ -88,9 +85,6 @@ export function QuickFacts({ facts, destination }: { facts: any; destination: st
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Map Explorer (Interactive)
-// ─────────────────────────────────────────────────────────────────────────────
 export const MapExplorer = memo(function MapExplorer({ 
   points, 
   destination,
@@ -300,104 +294,186 @@ export const MapExplorer = memo(function MapExplorer({
 // ─────────────────────────────────────────────────────────────────────────────
 // Popular Places — Premium Exploration System
 // ─────────────────────────────────────────────────────────────────────────────
-const PlaceCard = memo(({ 
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared Slider / Carousel Component
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Premium Carousel Component
+ * High-performance horizontal slider with drag support, snapping, and glassmorphism controls.
+ */
+export function PremiumCarousel({ 
+  children, 
+  options = { align: 'start', skipSnaps: false, containScroll: 'trimSnaps', dragFree: false }
+}: { 
+  children: React.ReactNode; 
+  options?: any;
+}) {
+  const [emblaRef, emblaApi] = useEmblaCarousel(options);
+  const [prevBtnEnabled, setPrevBtnEnabled] = useState(false);
+  const [nextBtnEnabled, setNextBtnEnabled] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const scrollPrev = useCallback(() => emblaApi && emblaApi.scrollPrev(), [emblaApi]);
+  const scrollNext = useCallback(() => emblaApi && emblaApi.scrollNext(), [emblaApi]);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setPrevBtnEnabled(emblaApi.canScrollPrev());
+    setNextBtnEnabled(emblaApi.canScrollNext());
+  }, [emblaApi]);
+
+  const onPointerDown = useCallback(() => setIsDragging(false), []);
+  const onDrag = useCallback(() => setIsDragging(true), []);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    onSelect();
+    emblaApi.on('select', onSelect);
+    emblaApi.on('reInit', onSelect);
+    emblaApi.on('pointerDown', onPointerDown);
+    emblaApi.on('pointerUp', () => setTimeout(() => setIsDragging(false), 50));
+    emblaApi.on('drag', onDrag);
+
+    // Keyboard navigation
+    const handleKeydown = (e: KeyboardEvent) => {
+      // Only trigger if the carousel is partially in the viewport to avoid multiple carousels scrolling
+      const rect = emblaApi.rootNode().getBoundingClientRect();
+      const inView = rect.top < window.innerHeight && rect.bottom > 0;
+      if (!inView) return;
+
+      if (e.key === 'ArrowLeft') scrollPrev();
+      if (e.key === 'ArrowRight') scrollNext();
+    };
+
+    window.addEventListener('keydown', handleKeydown);
+    return () => window.removeEventListener('keydown', handleKeydown);
+  }, [emblaApi, onSelect, onPointerDown, onDrag, scrollPrev, scrollNext]);
+
+  // Prevent accidental clicks while dragging
+  const handleClickCapture = useCallback(
+    (e: React.MouseEvent) => {
+      if (isDragging) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    },
+    [isDragging]
+  );
+
+  return (
+    <div className="relative w-full group/slider select-none">
+      <div 
+        className="overflow-hidden cursor-grab active:cursor-grabbing -mx-4 px-4" 
+        ref={emblaRef}
+        onClickCapture={handleClickCapture}
+      >
+        <div className="flex gap-4 sm:gap-6 py-8">
+          {children}
+        </div>
+      </div>
+
+      {/* Premium Centered Navigation Buttons */}
+      <button
+        onClick={scrollPrev}
+        disabled={!prevBtnEnabled}
+        className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-40 w-12 h-12 rounded-full bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl border border-white/40 dark:border-white/10 flex items-center justify-center text-foreground shadow-2xl transition-all duration-300 group/btn ${
+          !prevBtnEnabled ? "opacity-20 cursor-not-allowed" : "hover:scale-110 hover:bg-primary hover:text-white"
+        }`}
+        aria-label="Previous slide"
+      >
+        <ChevronLeft className="w-6 h-6 transition-transform group-hover/btn:-translate-x-0.5" />
+      </button>
+      
+      <button
+        onClick={scrollNext}
+        disabled={!nextBtnEnabled}
+        className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-40 w-12 h-12 rounded-full bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl border border-white/40 dark:border-white/10 flex items-center justify-center text-foreground shadow-2xl transition-all duration-300 group/btn ${
+          !nextBtnEnabled ? "opacity-20 cursor-not-allowed" : "hover:scale-110 hover:bg-primary hover:text-white"
+        }`}
+        aria-label="Next slide"
+      >
+        <ChevronRight className="w-6 h-6 transition-transform group-hover/btn:translate-x-0.5" />
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Redesigned Compact PlaceCard
+// ─────────────────────────────────────────────────────────────────────────────
+export const PlaceCard = memo(function PlaceCard({ 
   place, 
-  isActive, 
+  destination,
+  isActive,
   onClick,
   onViewDetails
 }: { 
   place: ExplorerPoint; 
-  isActive: boolean; 
-  onClick: () => void;
-  onViewDetails: (p: any) => void;
-}) => {
+  destination: string;
+  isActive?: boolean;
+  onClick?: () => void;
+  onViewDetails: (place: any) => void;
+}) {
   return (
     <div 
-      onClick={onClick}
-      className={`group relative h-[520px] rounded-[3rem] overflow-hidden cursor-pointer transition-all duration-700 bg-zinc-100 dark:bg-zinc-800 border ${
-        isActive 
-          ? "ring-4 ring-primary ring-offset-4 ring-offset-background scale-[1.02] shadow-2xl shadow-primary/20 z-10" 
-          : "border-border/50 hover:border-primary/40 shadow-xl shadow-black/5"
+      className={`group relative flex-none w-[320px] sm:w-[380px] bg-card border border-border/50 rounded-[2rem] overflow-hidden transition-all duration-700 hover:shadow-2xl hover:shadow-primary/5 cursor-pointer ${
+        isActive ? "ring-2 ring-primary ring-offset-4 ring-offset-background" : ""
       }`}
+      onClick={onClick}
     >
-      {/* Background Image */}
-      <img 
-        src={place.image || FALLBACK_IMAGE} 
-        alt={place.name} 
-        className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-      />
-      
-      {/* Dynamic Overlays */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-80 group-hover:opacity-90 transition-opacity duration-500" />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-
-      {/* Content Container */}
-      <div className="absolute inset-0 p-8 flex flex-col justify-between">
+      {/* Image Area - 16:10 Ratio */}
+      <div className="relative aspect-[16/10] overflow-hidden">
+        <img
+          src={safeImageResolver(place.image, `${place.name} ${destination}`)}
+          alt={place.name}
+          className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+          onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+        
         {/* Top Badges */}
-        <div className="flex justify-between items-start">
-          <div className="flex flex-col gap-2">
-            <span className="inline-flex bg-primary/90 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full shadow-lg">
-              {place.category}
-            </span>
-            {isActive && (
-              <span className="inline-flex bg-white text-black text-[9px] font-black uppercase tracking-[0.1em] px-3 py-1.5 rounded-full animate-pulse self-start shadow-md">
-                Exploring Now
-              </span>
-            )}
+        <div className="absolute top-4 left-4 flex items-center gap-2">
+          <div className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-xl">
+             {place.category}
           </div>
-          <button 
-            onClick={(e) => { e.stopPropagation(); onViewDetails(place); }}
-            className="w-11 h-11 bg-white/10 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center text-white hover:bg-primary hover:scale-110 transition-all duration-300"
-          >
-            <Compass className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1 bg-primary text-white px-2 py-0.5 rounded-lg text-[9px] font-black shadow-lg">
+             <Star className="w-3 h-3 fill-current" /> {place.rating?.toFixed(1) || '4.5'}
+          </div>
         </div>
 
-        {/* Bottom Info */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 bg-orange-500/20 backdrop-blur-sm border border-orange-500/30 text-orange-400 px-3 py-1.5 rounded-full">
-              <Star className="w-3.5 h-3.5 fill-current" />
-              <span className="text-[11px] font-black tracking-widest">{place.rating}</span>
-            </div>
-            {place.bestTime && (
-              <div className="flex items-center gap-1.5 bg-indigo-500/20 backdrop-blur-sm border border-indigo-500/30 text-indigo-300 px-3 py-1.5 rounded-full">
-                <Clock className="w-3.5 h-3.5" />
-                <span className="text-[11px] font-black tracking-widest uppercase">{place.bestTime}</span>
-              </div>
-            )}
+        {/* Overlay Content */}
+        <div className="absolute bottom-4 left-5 right-5 space-y-1">
+          <div className="flex items-center gap-1 text-white/70">
+             <MapPin className="w-3 h-3" />
+             <span className="text-[9px] font-black uppercase tracking-widest">{place.duration}</span>
           </div>
+          <h4 className="text-xl font-black font-headline text-white uppercase tracking-tighter leading-none group-hover:text-primary transition-colors">
+            {place.name}
+          </h4>
+        </div>
+      </div>
 
-          <div className="space-y-2">
-            <h4 className="text-3xl font-black font-headline text-white uppercase leading-none tracking-tighter group-hover:text-primary transition-colors">
-              {place.name}
-            </h4>
-            <p className="text-zinc-300 text-sm font-medium line-clamp-2 leading-relaxed opacity-90 group-hover:opacity-100 transition-opacity">
-              {place.description}
-            </p>
-          </div>
-
-          {/* Expanded Tags on Hover */}
-          <div className="flex flex-wrap gap-2 pt-2 opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 delay-100">
-            {place.tags?.slice(0, 3).map((tag, i) => (
-              <span key={i} className="bg-white/10 border border-white/20 text-white/80 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full">
-                {tag}
-              </span>
-            ))}
-          </div>
-
-          {/* CTA Row */}
-          <div className="flex items-center justify-between pt-4 opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 delay-200">
-             <button 
-               onClick={(e) => { e.stopPropagation(); onViewDetails(place); }}
-               className="flex items-center gap-2 text-primary font-black text-[10px] uppercase tracking-[0.2em] hover:underline"
-             >
-               View Details <ArrowRight className="w-4 h-4" />
-             </button>
-             <div className="text-white/60 text-[10px] font-bold uppercase tracking-widest">
-               {place.duration}
-             </div>
-          </div>
+      {/* Description Area - Compact */}
+      <div className="p-5 space-y-4">
+        <p className="text-muted-foreground text-xs font-medium leading-relaxed line-clamp-2">
+          {place.description}
+        </p>
+        
+        <div className="flex items-center justify-between pt-4 border-t border-border/50">
+           <div className="flex gap-1.5">
+              {place.tags?.slice(0, 2).map((tag, i) => (
+                <span key={i} className="px-2 py-0.5 bg-muted rounded-md text-[8px] font-black uppercase tracking-widest text-muted-foreground">
+                  {tag}
+                </span>
+              ))}
+           </div>
+           <button 
+             onClick={(e) => { e.stopPropagation(); onViewDetails(place); }}
+             className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-md"
+           >
+             <ArrowRight className="w-4 h-4" />
+           </button>
         </div>
       </div>
     </div>
@@ -419,17 +495,20 @@ export const PopularPlaces = memo(function PopularPlaces({
 }) {
   const [filter, setFilter] = useState("All");
   
-  const categories = useMemo(() => ["All", ...new Set(places.map(p => p.category))].slice(0, 8), [places]);
-  const filteredPlaces = useMemo(() => filter === "All" ? places : places.filter(p => p.category === filter), [filter, places]);
+  // CONCEPTUAL FIX: Filter out stays from Popular Places / Hidden Gems
+  const attractionsOnly = useMemo(() => places.filter(p => p.type !== 'stay'), [places]);
+  
+  const categories = useMemo(() => ["All", ...new Set(attractionsOnly.map(p => p.category))].slice(0, 8), [attractionsOnly]);
+  const filteredPlaces = useMemo(() => filter === "All" ? attractionsOnly : attractionsOnly.filter(p => p.category === filter), [filter, attractionsOnly]);
 
-  if (places.length === 0) return null;
+  if (attractionsOnly.length === 0) return null;
 
   return (
-    <div className="space-y-16 mt-32 mb-32 scroll-mt-32" id="popular-places">
+    <div className="space-y-12 mt-32 mb-32 scroll-mt-32" id="popular-places">
       {/* Section Header */}
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
         <div className="max-w-2xl space-y-4">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/20 text-primary rounded-full text-[10px] font-black uppercase tracking-[0.2em] animate-fade-in">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/20 text-primary rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
             <Compass className="w-4 h-4" /> Destination Highlights
           </div>
           <h3 className="text-5xl md:text-7xl font-black font-headline uppercase leading-[0.85] tracking-tighter">
@@ -446,9 +525,9 @@ export const PopularPlaces = memo(function PopularPlaces({
             <button 
               key={cat} 
               onClick={() => setFilter(cat)}
-              className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border transition-all duration-500 whitespace-nowrap ${
+              className={`px-6 py-2.5 rounded-full text-[9px] font-black uppercase tracking-[0.2em] border transition-all duration-500 whitespace-nowrap ${
                 filter === cat 
-                  ? "bg-primary text-white border-primary shadow-[0_10px_30px_rgba(var(--primary),0.3)] scale-105" 
+                  ? "bg-primary text-white border-primary shadow-lg scale-105" 
                   : "bg-background hover:bg-muted border-border hover:border-primary/30"
               }`}
             >
@@ -458,8 +537,8 @@ export const PopularPlaces = memo(function PopularPlaces({
         </div>
       </div>
 
-      {/* Places Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+      {/* Places Slider */}
+      <PremiumCarousel>
         {filteredPlaces.map((place) => {
           const globalIndex = places.indexOf(place);
           const isActive = globalIndex === activeIndex;
@@ -468,6 +547,7 @@ export const PopularPlaces = memo(function PopularPlaces({
             <PlaceCard 
               key={place.id}
               place={place}
+              destination={destination}
               isActive={isActive}
               onClick={() => {
                 onIndexChange(globalIndex);
@@ -477,14 +557,7 @@ export const PopularPlaces = memo(function PopularPlaces({
             />
           );
         })}
-      </div>
-
-      {/* Footer CTA */}
-      <div className="flex items-center justify-center pt-8">
-        <Button variant="outline" className="rounded-full px-12 h-16 border-2 font-black uppercase tracking-[0.3em] text-[10px] hover:bg-primary hover:text-white transition-all duration-500 shadow-xl shadow-black/5 group">
-          Explore All Places <ChevronRight className="w-5 h-5 ml-2 group-hover:translate-x-2 transition-transform" />
-        </Button>
-      </div>
+      </PremiumCarousel>
     </div>
   );
 });
@@ -557,79 +630,213 @@ export function TripPlannerCTA({ destination }: { destination: string }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Adventure Activities — with price + Book Now CTA
+// Adventure Activities — Premium Seasonal Experience System
 // ─────────────────────────────────────────────────────────────────────────────
-export function AdventureActivities({ 
-  activities, 
-  destination 
+
+const ActivityCard = memo(({ 
+  activity, 
+  destination,
+  onViewDetails
 }: { 
-  activities: any[]; 
-  destination: string 
-}) {
+  activity: any; 
+  destination: string;
+  onViewDetails?: (place: any) => void;
+}) => {
   const router = useRouter();
-  if (!activities || activities.length === 0) return null;
+
+  const getSeasonBadge = (season: string) => {
+    const config: any = {
+      'Summer': { icon: <Sun className="w-3 h-3" />, class: 'bg-orange-500/10 text-orange-600 border-orange-500/20' },
+      'Winter': { icon: <Snowflake className="w-3 h-3" />, class: 'bg-blue-500/10 text-blue-600 border-blue-500/20' },
+      'All-Season': { icon: <Wind className="w-3 h-3" />, class: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20' }
+    };
+    const c = config[season] || config['All-Season'];
+    return (
+      <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[9px] font-black uppercase tracking-widest ${c.class}`}>
+        {c.icon} {season}
+      </div>
+    );
+  };
 
   return (
-    <div className="space-y-10 mt-24">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
-        <div className="space-y-1">
-          <h3 className="text-3xl md:text-4xl font-black font-headline uppercase tracking-tighter">Adventure & Experiences</h3>
-          <p className="text-muted-foreground font-medium">Curated thrills and immersive cultural journeys in {destination}</p>
+    <div 
+      className="group relative flex-none w-[320px] sm:w-[380px] bg-card border border-border/50 rounded-[2rem] overflow-hidden transition-all duration-700 hover:shadow-2xl hover:shadow-primary/5 flex flex-col h-full cursor-pointer"
+      onClick={() => onViewDetails?.(activity)}
+    >
+      {/* Image Area - 16:10 Ratio */}
+      <div className="relative aspect-[16/10] w-full overflow-hidden">
+        <img
+          src={safeImageResolver(activity.image, `${activity.name} ${destination}`)}
+          alt={activity.name}
+          className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+          onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        
+        {/* Top Badges */}
+        <div className="absolute top-4 left-4 flex flex-col gap-2">
+           {getSeasonBadge(activity.season)}
+           <div className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest shadow-xl">
+             {activity.category}
+           </div>
         </div>
-        <Button
-          variant="outline"
-          className="rounded-full font-black uppercase tracking-widest text-[10px] h-12 px-8 border-2 hover:bg-primary hover:text-white transition-all shadow-xl shadow-black/5"
-          onClick={() => router.push(`/chat?destination=${encodeURIComponent(destination)}&prompt=activities`)}
-        >
-          View All Activities <ChevronRight className="w-4 h-4 ml-2" />
-        </Button>
+
+        <div className="absolute bottom-4 left-5 right-5 flex justify-between items-end">
+           <div className="space-y-0.5">
+              <div className="flex items-center gap-1 text-white/70">
+                 <MapPin className="w-3 h-3" />
+                 <span className="text-[9px] font-black uppercase tracking-widest">{activity.location || destination}</span>
+              </div>
+              <h4 className="text-xl font-black font-headline text-white uppercase tracking-tighter leading-none group-hover:text-primary transition-colors">
+                {activity.name}
+              </h4>
+           </div>
+           <div className="flex items-center gap-1 bg-primary text-white px-2 py-0.5 rounded-lg text-[9px] font-black shadow-lg">
+             <Star className="w-3 h-3 fill-current" /> {activity.rating || '4.8'}
+           </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-        {activities.map((activity, idx) => (
-          <div key={idx} className="group bg-card border border-border/50 rounded-[2.5rem] overflow-hidden hover:shadow-2xl transition-all duration-500 flex flex-col shadow-xl shadow-black/5">
-            <div className="relative h-64 w-full overflow-hidden">
-              <img
-                src={activity.image || FALLBACK_IMAGE}
-                alt={activity.name}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
-              <div className="absolute top-4 left-4">
-                 <span className="px-4 py-1.5 bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-full text-[9px] font-black uppercase tracking-widest">
-                   {activity.category || activity.bestSeason || 'Adventure'}
-                 </span>
-              </div>
-            </div>
-            <div className="p-8 flex-1 flex flex-col justify-between space-y-4">
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-black font-headline uppercase tracking-tight text-xl leading-none">{activity.name}</h4>
-                  <div className="flex items-center gap-1 text-orange-500 font-bold text-xs">
-                    <Star className="w-3.5 h-3.5 fill-current" /> {activity.rating || '4.8'}
-                  </div>
-                </div>
-                <p className="text-muted-foreground text-sm font-medium line-clamp-2 leading-relaxed">
-                  {activity.description || activity.location || `Experience the best of ${activity.name} in the heart of ${destination}.`}
-                </p>
-              </div>
-              <div className="flex items-center justify-between pt-6 border-t border-border/50">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Clock className="w-4 h-4" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">{activity.duration || '2-3 Hours'}</span>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  className="text-primary hover:text-primary hover:bg-primary/5 font-black uppercase tracking-widest text-[9px] p-0 h-auto"
-                  onClick={() => router.push(`/chat?destination=${encodeURIComponent(destination)}&prompt=${encodeURIComponent(`Book ${activity.name}`)}`)}
-                >
-                  Book Experience <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-                </Button>
-              </div>
-            </div>
+      {/* Content Section */}
+      <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+        <div className="space-y-3">
+          <p className="text-muted-foreground text-xs font-medium leading-relaxed line-clamp-2">
+            {activity.description}
+          </p>
+
+          <div className="flex flex-wrap gap-1.5">
+            {(activity.bestFor || ['Adventure']).slice(0, 2).map((tag: string, i: number) => (
+              <span key={i} className="px-2 py-0.5 bg-muted rounded-md text-[8px] font-black uppercase tracking-widest text-muted-foreground">
+                {tag}
+              </span>
+            ))}
           </div>
-        ))}
+        </div>
+
+        <div className="flex items-center justify-between pt-4 border-t border-border/50">
+          <div>
+             <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Starts from</span>
+             <p className="text-lg font-black text-foreground leading-none mt-1">{activity.price || 'On Request'}</p>
+          </div>
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`/chat?destination=${encodeURIComponent(destination)}&prompt=${encodeURIComponent(`Tell me about ${activity.name}`)}`);
+            }}
+            className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-md"
+          >
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+export function AdventureActivities({ 
+  activities, 
+  destination,
+  onViewDetails
+}: { 
+  activities: any[]; 
+  destination: string;
+  onViewDetails?: (place: any) => void;
+}) {
+  const [activeSeason, setActiveSeason] = useState('All');
+  const [activeCategory, setActiveCategory] = useState('All');
+
+  if (!activities || activities.length === 0) return null;
+
+  const seasons = ['All', 'Summer', 'Winter', 'All-Season'];
+  const categories = ['All', ...new Set(activities.map(a => a.category))].slice(0, 6);
+
+  const filtered = activities.filter(a => {
+    const seasonMatch = activeSeason === 'All' || a.season === activeSeason;
+    const categoryMatch = activeCategory === 'All' || a.category === activeCategory;
+    return seasonMatch && categoryMatch;
+  });
+
+  return (
+    <div className="space-y-12 mt-32 relative" id="activities">
+      {/* Header & Controls */}
+      <div className="flex flex-col lg:flex-row justify-between items-end gap-10">
+        <div className="space-y-4 max-w-2xl text-center lg:text-left">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-500/10 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-indigo-500/20 mx-auto lg:mx-0">
+            <Zap className="w-4 h-4" /> Adventure & Experiences
+          </div>
+          <h3 className="text-5xl md:text-7xl font-black font-headline uppercase tracking-tighter leading-[0.85]">
+            Unforgettable <span className="text-primary">Journeys</span>
+          </h3>
+          <p className="text-muted-foreground font-medium text-lg leading-relaxed">
+            From adrenaline-pumping treks to serene cultural immersion.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-end gap-4 w-full lg:w-auto">
+          {/* Season Filters - Compact */}
+          <div className="flex p-1 bg-muted/50 rounded-xl border border-border/50">
+            {seasons.map(s => (
+              <button
+                key={s}
+                onClick={() => setActiveSeason(s)}
+                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all duration-300 ${
+                  activeSeason === s 
+                    ? "bg-white dark:bg-zinc-900 text-primary shadow-lg scale-105" 
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          
+          {/* Category Chips */}
+          <div className="flex flex-wrap gap-2 justify-center lg:justify-end">
+            {categories.map(c => (
+              <button
+                key={c}
+                onClick={() => setActiveCategory(c)}
+                className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest border transition-all duration-300 ${
+                  activeCategory === c 
+                    ? "bg-primary text-white border-primary shadow-md" 
+                    : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Activities Slider */}
+      {filtered.length > 0 ? (
+        <PremiumCarousel>
+          {filtered.map((activity, idx) => (
+            <ActivityCard key={idx} activity={activity} destination={destination} onViewDetails={onViewDetails} />
+          ))}
+        </PremiumCarousel>
+      ) : (
+        <div className="h-64 flex flex-col items-center justify-center space-y-4 bg-muted/20 rounded-[2rem] border border-dashed border-border/50">
+           <ShieldCheck className="w-10 h-10 text-muted-foreground/30" />
+           <div className="text-center">
+             <h4 className="text-sm font-black font-headline uppercase tracking-tighter">No experiences found</h4>
+           </div>
+           <Button variant="outline" className="rounded-full font-black uppercase tracking-widest text-[9px] h-9" onClick={() => { setActiveSeason('All'); setActiveCategory('All'); }}>
+             Reset Filters
+           </Button>
+        </div>
+      )}
+
+      {/* Footer Action */}
+      <div className="flex flex-col items-center pt-12 space-y-6">
+         <div className="h-px w-24 bg-border/50" />
+         <button
+           onClick={() => window.location.href = `/chat?destination=${encodeURIComponent(destination)}&prompt=activities`}
+           className="px-12 h-16 rounded-full border-2 border-primary/30 text-primary font-black uppercase tracking-[0.3em] text-[10px] hover:bg-primary hover:text-white transition-all shadow-xl shadow-black/5 flex items-center gap-2"
+         >
+           Browse All {destination} Experiences <ChevronRight className="w-5 h-5" />
+         </button>
       </div>
     </div>
   );
@@ -638,76 +845,174 @@ export function AdventureActivities({
 // ─────────────────────────────────────────────────────────────────────────────
 // Stay Recommendations — with real price, rating, and View Deal CTA
 // ─────────────────────────────────────────────────────────────────────────────
-export function StayRecommendations({
-  hotels,
+const StayCard = memo(({ 
+  hotel, 
   destination,
-}: {
-  hotels: any[];
+  onViewDetails
+}: { 
+  hotel: any; 
   destination: string;
-}) {
+  onViewDetails?: (place: any) => void;
+}) => {
   const router = useRouter();
-  if (!hotels || hotels.length === 0) return null;
+
+  const getAmenityIcon = (amenity: string) => {
+    const low = amenity.toLowerCase();
+    if (low.includes('wifi')) return <Wifi className="w-3.5 h-3.5" />;
+    if (low.includes('pool') || low.includes('river')) return <Waves className="w-3.5 h-3.5" />;
+    if (low.includes('tv')) return <Tv className="w-3.5 h-3.5" />;
+    if (low.includes('food') || low.includes('breakfast')) return <Utensils className="w-3.5 h-3.5" />;
+    if (low.includes('view') || low.includes('mountain')) return <Mountain className="w-3.5 h-3.5" />;
+    return <ShieldCheck className="w-3.5 h-3.5" />;
+  };
 
   return (
-    <div className="space-y-10 mt-24">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
-        <div className="space-y-1">
-          <h3 className="text-3xl md:text-4xl font-black font-headline uppercase tracking-tighter">Luxury Retreats</h3>
-          <p className="text-muted-foreground font-medium">From boutique stays to heritage resorts in {destination}</p>
+    <div 
+      className="group relative flex-none w-[320px] sm:w-[380px] bg-card border border-border/50 rounded-[2rem] overflow-hidden transition-all duration-700 hover:shadow-2xl hover:shadow-primary/5 flex flex-col h-full cursor-pointer"
+      onClick={() => onViewDetails?.(hotel)}
+    >
+      {/* Image Area - 16:10 Ratio */}
+      <div className="relative aspect-[16/10] w-full overflow-hidden">
+        <img
+          src={safeImageResolver(hotel.image, `${hotel.name} ${destination}`)}
+          alt={hotel.name}
+          className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+          onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        
+        {/* Badges */}
+        <div className="absolute top-4 left-4">
+           <div className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest shadow-xl">
+             {hotel.type || 'Stay'}
+           </div>
         </div>
-        <Button
-          variant="outline"
-          className="rounded-full font-black uppercase tracking-widest text-[10px] h-12 px-8 border-2 hover:bg-primary hover:text-white transition-all shadow-xl shadow-black/5"
-          onClick={() => router.push(`/chat?destination=${encodeURIComponent(destination)}&prompt=hotels`)}
-        >
-          Explore All Stays <ChevronRight className="w-4 h-4 ml-2" />
-        </Button>
+
+        <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
+           <div className="flex items-center gap-1 bg-emerald-500 text-white px-2 py-0.5 rounded-lg text-[9px] font-black shadow-lg">
+             <Star className="w-3 h-3 fill-current" /> {hotel.rating?.toFixed(1) || '4.8'}
+           </div>
+        </div>
+
+        <div className="absolute bottom-4 left-5 right-5 space-y-0.5">
+           <div className="flex items-center gap-1 text-white/70">
+              <MapPin className="w-3 h-3" />
+              <span className="text-[9px] font-black uppercase tracking-widest">{destination}</span>
+           </div>
+           <h4 className="text-xl font-black font-headline text-white uppercase tracking-tighter leading-none group-hover:text-primary transition-colors">
+             {hotel.name}
+           </h4>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-        {hotels.map((hotel, idx) => (
-          <div key={idx} className="group bg-card border border-border/50 rounded-[2.5rem] overflow-hidden hover:shadow-2xl transition-all duration-500 flex flex-col shadow-xl shadow-black/5">
-            <div className="relative h-56 w-full overflow-hidden">
-              <img
-                src={hotel.image || FALLBACK_IMAGE}
-                alt={hotel.name}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
-              <div className="absolute top-4 left-4">
-                 <span className="px-4 py-1.5 bg-primary/90 text-white rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg">
-                   {hotel.type || 'Stay'}
-                 </span>
-              </div>
-            </div>
-            <div className="p-6 flex-1 flex flex-col justify-between">
-              <div className="space-y-2">
-                <div className="flex justify-between items-start gap-2">
-                  <h4 className="font-black font-headline uppercase tracking-tight text-lg leading-tight group-hover:text-primary transition-colors">{hotel.name}</h4>
-                  <div className="flex items-center gap-1 bg-orange-500/10 text-orange-500 text-[10px] font-black px-2 py-0.5 rounded-full shrink-0">
-                    <Star className="w-3 h-3 fill-current" />
-                    {hotel.rating?.toFixed(1) || '4.5'}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between pt-6 border-t border-border/50 mt-6">
-                <div>
-                  <span className="text-[9px] text-muted-foreground uppercase font-black tracking-widest">Starts From</span>
-                  <p className="font-black text-lg leading-none mt-1">{hotel.price || "On request"}</p>
-                </div>
-                <Button
-                  size="sm"
-                  className="rounded-xl font-black uppercase tracking-widest text-[9px] px-5 h-10 shadow-lg shadow-primary/20"
-                  onClick={() => router.push(`/chat?destination=${encodeURIComponent(destination)}&prompt=${encodeURIComponent(`Book ${hotel.name}`)}`)}
-                >
-                  View Details
-                </Button>
-              </div>
-            </div>
+      {/* Content Section */}
+      <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+        <div className="space-y-3">
+          <p className="text-muted-foreground text-xs font-medium leading-relaxed line-clamp-2">
+            {hotel.description}
+          </p>
+
+          <div className="grid grid-cols-2 gap-2">
+             {(hotel.amenities || ['Wifi', 'View']).slice(0, 4).map((amenity: string, i: number) => (
+               <div key={i} className="flex items-center gap-1.5 text-muted-foreground">
+                  {getAmenityIcon(amenity)}
+                  <span className="text-[8px] font-black uppercase tracking-widest truncate">{amenity}</span>
+               </div>
+             ))}
           </div>
-        ))}
+        </div>
+
+        <div className="flex items-center justify-between pt-4 border-t border-border/50">
+          <div>
+             <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Starts from</span>
+             <p className="text-lg font-black text-foreground leading-none mt-1">{hotel.priceRange || hotel.price || 'On Request'}</p>
+          </div>
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`/chat?destination=${encodeURIComponent(destination)}&prompt=${encodeURIComponent(`Book ${hotel.name}`)}`);
+            }}
+            className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-md"
+          >
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
+    </div>
+  );
+});
+
+export function StayRecommendations({ 
+  hotels, 
+  destination,
+  onViewDetails
+}: { 
+  hotels: any[]; 
+  destination: string;
+  onViewDetails?: (place: any) => void;
+}) {
+  const [activeFilter, setActiveFilter] = useState('All');
+
+  if (!hotels || hotels.length === 0) return null;
+
+  const filters = ['All', 'Luxury', 'Budget', 'Hostel', 'Homestay'];
+  
+  const filtered = hotels.filter(h => {
+    if (activeFilter === 'All') return true;
+    const type = h.type?.toLowerCase() || '';
+    const tags = h.tags?.map((t: string) => t.toLowerCase()) || [];
+    const search = activeFilter.toLowerCase();
+    return type.includes(search) || tags.some((t: string) => t.includes(search));
+  });
+
+  return (
+    <div className="space-y-12 mt-32 relative" id="stays">
+      {/* Header & Controls */}
+      <div className="flex flex-col lg:flex-row justify-between items-end gap-10">
+        <div className="space-y-4 max-w-2xl text-center lg:text-left">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-500/20 mx-auto lg:mx-0">
+            <Hotel className="w-4 h-4" /> Luxury Retreats & Stays
+          </div>
+          <h3 className="text-5xl md:text-7xl font-black font-headline uppercase tracking-tighter leading-[0.85]">
+            Find Your <span className="text-emerald-500">Sanctuary</span>
+          </h3>
+          <p className="text-muted-foreground font-medium text-lg leading-relaxed">
+            Curated accommodations that define your {destination} experience.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2 justify-center lg:justify-end">
+          {filters.map(f => (
+            <button
+              key={f}
+              onClick={() => setActiveFilter(f)}
+              className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest border transition-all duration-300 ${
+                activeFilter === f 
+                  ? "bg-emerald-500 text-white border-emerald-500 shadow-md scale-105" 
+                  : "bg-muted/50 text-muted-foreground border-border hover:border-emerald-500/50 hover:text-emerald-500"
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Stays Slider */}
+      {filtered.length > 0 ? (
+        <PremiumCarousel>
+          {filtered.map((hotel, idx) => (
+            <StayCard key={idx} hotel={hotel} destination={destination} onViewDetails={onViewDetails} />
+          ))}
+        </PremiumCarousel>
+      ) : (
+        <div className="h-64 flex flex-col items-center justify-center space-y-4 bg-muted/20 rounded-[2rem] border border-dashed border-border/50">
+           <ShieldCheck className="w-10 h-10 text-muted-foreground/30" />
+           <div className="text-center">
+             <h4 className="text-sm font-black font-headline uppercase tracking-tighter">No stays found</h4>
+           </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -800,7 +1105,7 @@ export function RentalsSection({ rentals }: { rentals: any[] }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Nearby Destinations
 // ─────────────────────────────────────────────────────────────────────────────
-export function NearbyDestinations({ nearby }: { nearby: any[] }) {
+export function NearbyDestinations({ nearby, destination }: { nearby: any[]; destination: string }) {
   if (!nearby || nearby.length === 0) return null;
   return (
     <div className="space-y-10 mt-32">
@@ -809,12 +1114,12 @@ export function NearbyDestinations({ nearby }: { nearby: any[] }) {
         <p className="text-muted-foreground font-medium">Extend your journey to these stunning nearby locations</p>
       </div>
       
-      <div className="flex overflow-x-auto pb-10 gap-8 scrollbar-hide snap-x md:grid md:grid-cols-4 md:overflow-visible">
+      <PremiumCarousel>
         {nearby.map((place, idx) => (
-          <div key={idx} className="min-w-[280px] md:min-w-0 snap-center bg-card border border-border/50 rounded-[3rem] overflow-hidden hover:shadow-2xl transition-all duration-500 group shadow-xl shadow-black/5">
+          <div key={idx} className="min-w-[280px] md:min-w-[320px] bg-card border border-border/50 rounded-[3rem] overflow-hidden hover:shadow-2xl transition-all duration-500 group shadow-xl shadow-black/5 flex-none">
             <div className="h-44 relative overflow-hidden bg-muted">
               <img
-                src={`https://images.unsplash.com/featured/800x450/?${encodeURIComponent(place.name)},travel,landscape`}
+                src={safeImageResolver(place.image, `${place.name} ${destination}`)}
                 alt={place.name}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                 onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
@@ -835,7 +1140,7 @@ export function NearbyDestinations({ nearby }: { nearby: any[] }) {
             </div>
           </div>
         ))}
-      </div>
+      </PremiumCarousel>
     </div>
   );
 }

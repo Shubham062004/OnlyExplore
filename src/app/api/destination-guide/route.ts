@@ -4,34 +4,14 @@ import { z } from 'genkit';
 import { connectDB } from '@/lib/mongodb';
 import DestinationGuide from '@/models/DestinationGuide';
 
+import { fetchPremiumImage, generateContextualQuery } from '@/lib/imageService';
+
 /**
- * ⚡ DESTINATION GUIDE API 2.0
- *
- * Features:
- * 1. MongoDB Caching (Check before Gemini)
- * 2. 2-Step Gemini Image System
- * 3. Real Unsplash API (source.unsplash.com is deprecated)
- * 4. Per-place unique images
+ * ⚡ DESTINATION GUIDE API 2.0 (Legacy Wrapper)
  */
 
-const FALLBACK_HERO =
-  'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1600&auto=format&fit=crop';
-const FALLBACK_PLACE =
-  'https://images.unsplash.com/photo-1506461883276-594a12b11cf3?q=80&w=800&auto=format&fit=crop';
-
-async function fetchUnsplashImage(query: string, accessKey: string): Promise<string> {
-  try {
-    const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(
-      query
-    )}&per_page=1&orientation=landscape&client_id=${accessKey}`;
-    const res = await fetch(url, { next: { revalidate: 0 } });
-    if (!res.ok) return '';
-    const data = await res.json();
-    return data.results?.[0]?.urls?.regular || '';
-  } catch {
-    return '';
-  }
-}
+const FALLBACK_HERO = 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&q=80&w=1600';
+const FALLBACK_PLACE = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=800&auto=format&fit=crop';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -117,20 +97,19 @@ RULES:
       '';
 
     // 🖼️ STEP 3: Fetch REAL images from Unsplash search API
-    let heroImage = FALLBACK_HERO;
-    if (ACCESS_KEY) {
-      const fetched = await fetchUnsplashImage(output.hero_query, ACCESS_KEY);
-      if (fetched) heroImage = fetched;
-    }
+    const heroImage = await fetchPremiumImage(
+      generateContextualQuery({ destination: location, category: 'hero' }),
+      { cacheKey: `${location}-hero` }
+    );
 
     const placesWithImages = await Promise.all(
       output.places.map(async (p) => {
-        let image = FALLBACK_PLACE;
-        if (ACCESS_KEY) {
-          const fetched = await fetchUnsplashImage(p.image_query, ACCESS_KEY);
-          if (fetched) image = fetched;
-        }
-        return { name: p.name, description: p.description, image };
+        const query = generateContextualQuery({ destination: location, name: p.name, category: 'landmark' });
+        const image = await fetchPremiumImage(p.image_query || query, { 
+          fallbackQuery: query, 
+          cacheKey: `${location}-${p.name}` 
+        });
+        return { name: p.name, description: p.description, image: image || FALLBACK_PLACE };
       })
     );
 

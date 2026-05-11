@@ -1,4 +1,5 @@
-import { getImageUrl } from './imageUtils';
+import { safeImageResolver } from './imageUtils';
+import type { DestinationGuideData } from '@/ai/flows/generateDestinationGuide';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types & Schemas
@@ -47,27 +48,6 @@ function validateCoordinates(coords: any): { lat: number; lng: number } {
  * Validates and sanitizes image URLs.
  * If broken, it attempts a contextual query or falls back to a global image.
  */
-export function safeImageResolver(url: string | null | undefined, fallbackQuery?: string, heroImage?: string): string {
-  const isInvalid = !url || 
-                    url.includes('placeholder') || 
-                    url === FALLBACK_IMAGE || 
-                    url.length < 15 ||
-                    url.includes('undefined') ||
-                    url.includes('null');
-
-  if (isInvalid) {
-    if (heroImage && !heroImage.includes('placeholder')) {
-      return heroImage;
-    }
-    if (fallbackQuery) {
-      // Use the image service to get a fresh URL if query is provided
-      return getImageUrl(fallbackQuery);
-    }
-    return FALLBACK_IMAGE;
-  }
-  
-  return url;
-}
 
 /**
  * Maps raw place data into a standardized ExplorerPoint.
@@ -89,7 +69,7 @@ export function normalizePlaceData(
     description: raw.description || raw.about || `Explore the beauty and culture of ${name} in ${destination}.`,
     category: raw.category || (type === 'stay' ? 'Accommodation' : type === 'activity' ? 'Experience' : 'Landmark'),
     image: safeImageResolver(raw.image, `${destination} ${name}`, heroImage),
-    rating: parseFloat(raw.rating) || 4.5 + (Math.random() * 0.4),
+    rating: parseFloat(raw.rating) || 4.5,
     duration: raw.duration || (type === 'stay' ? 'Per Night' : '2-3 Hours'),
     type,
     coordinates: validateCoordinates(raw.coordinates),
@@ -101,25 +81,25 @@ export function normalizePlaceData(
 /**
  * Normalizes an entire destination guide into a list of explorable points.
  */
-export function normalizeExplorerPoints(guide: any, destination: string): ExplorerPoint[] {
+export function normalizeExplorerPoints(guide: DestinationGuideData | null | any, destination: string): ExplorerPoint[] {
   if (!guide) return [];
 
   const points: ExplorerPoint[] = [];
-  const heroImage = guide.heroImage;
+  const heroImage = (guide as any).heroImage;
 
   // 1. Popular Places (Attractions)
   if (Array.isArray(guide.popularPlaces)) {
-    guide.popularPlaces.forEach((p, i) => points.push(normalizePlaceData(p, i, 'attraction', destination, heroImage)));
+    guide.popularPlaces.forEach((p: any, i: number) => points.push(normalizePlaceData(p, i, 'attraction', destination, heroImage)));
   }
 
   // 2. Activities
   if (Array.isArray(guide.activities)) {
-    guide.activities.forEach((a, i) => points.push(normalizePlaceData(a, i, 'activity', destination, heroImage)));
+    guide.activities.forEach((a: any, i: number) => points.push(normalizePlaceData(a, i, 'activity', destination, heroImage)));
   }
 
   // 3. Stays
   if (Array.isArray(guide.hotels)) {
-    guide.hotels.forEach((h, i) => points.push(normalizePlaceData(h, i, 'stay', destination, heroImage)));
+    guide.hotels.forEach((h: any, i: number) => points.push(normalizePlaceData(h, i, 'stay', destination, heroImage)));
   }
 
   // Deduplicate by name to prevent visual clutter
@@ -127,6 +107,7 @@ export function normalizeExplorerPoints(guide: any, destination: string): Explor
   const seen = new Set<string>();
   
   points.forEach(p => {
+    if (!p.name) return;
     const key = p.name.toLowerCase().trim();
     if (!seen.has(key)) {
       seen.add(key);
@@ -170,9 +151,10 @@ export function getSafeExplorerPoints(points: ExplorerPoint[], destination: stri
   
   fallbacks.forEach((fb, i) => {
     if (combined.length >= targetCount) return;
+    if (!fb.name) return;
     
     // Check if name already exists in points
-    const exists = combined.some(p => p.name.toLowerCase() === fb.name?.toLowerCase());
+    const exists = combined.some(p => p.name?.toLowerCase() === fb.name?.toLowerCase());
     if (!exists) {
       combined.push(normalizePlaceData(fb, combined.length + i, 'attraction', destination));
     }

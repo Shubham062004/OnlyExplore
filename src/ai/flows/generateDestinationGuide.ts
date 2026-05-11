@@ -3,6 +3,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { connectDB } from '@/lib/mongodb';
 import DestinationGuide from '@/models/DestinationGuide';
+import { fetchPremiumImage, generateContextualQuery } from '@/lib/imageService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Schema — imageQuery on every visual item; image is attached after fetch
@@ -35,29 +36,38 @@ const DestinationGuideSchema = z.object({
   })),
   activities: z.array(z.object({
     name: z.string(),
+    description: z.string().describe('max 15 words'),
     price: z.string().optional().describe('e.g. ₹1500'),
     location: z.string().optional(),
-    bestSeason: z.string().optional(),
+    season: z.enum(['Summer', 'Winter', 'All-Season']),
+    difficulty: z.enum(['Easy', 'Moderate', 'Challenging']),
+    intensity: z.enum(['Low', 'Medium', 'High']),
     imageQuery: z.string().describe('specific Unsplash query e.g. "paragliding Manali mountains"'),
     coordinates: z.object({
       lat: z.number(),
       lng: z.number(),
     }).optional(),
-    category: z.literal('Adventure'),
+    category: z.string().describe('e.g. Adventure, Relaxation, Culture'),
     rating: z.number().optional(),
     duration: z.string().optional().describe('e.g. 1 hour'),
+    bestFor: z.array(z.string()).optional().describe('e.g. Couples, Families, Adrenaline Junkies'),
+    timing: z.string().optional().describe('e.g. 6:00 AM - 10:00 AM'),
   })),
   hotels: z.array(z.object({
     name: z.string(),
-    type: z.string(),
-    price: z.string().optional().describe('e.g. ₹4200/night'),
+    description: z.string().describe('max 15 words'),
+    type: z.string().describe('e.g. Luxury Resort, Boutique Hotel, Backpacker Hostel, Homestay'),
+    priceRange: z.string().describe('e.g. ₹5000 - ₹8000'),
     rating: z.number().optional().describe('0-5'),
     imageQuery: z.string().describe('specific Unsplash query e.g. "Manali luxury hotel mountain view"'),
     coordinates: z.object({
       lat: z.number(),
       lng: z.number(),
     }).optional(),
+    amenities: z.array(z.string()).describe('e.g. ["Wifi", "Mountain View", "Pool"]'),
+    bestFor: z.array(z.string()).describe('e.g. ["Couples", "Solo Travelers"]'),
     category: z.literal('Stay'),
+    tags: z.array(z.string()).optional(),
   })),
   itinerary: z.array(z.object({
     day: z.number(),
@@ -96,23 +106,38 @@ export interface EnrichedPlace {
 
 export interface EnrichedActivity {
   name: string;
+  description: string;
   price?: string;
   location?: string;
-  bestSeason?: string;
+  season: 'Summer' | 'Winter' | 'All-Season';
+  difficulty: 'Easy' | 'Moderate' | 'Challenging';
+  intensity: 'Low' | 'Medium' | 'High';
   imageQuery: string;
   image: string;
+  category: string;
+  rating?: number;
+  duration?: string;
+  bestFor?: string[];
+  timing?: string;
 }
 
 export interface EnrichedHotel {
   name: string;
+  description: string;
   type: string;
-  price?: string;
+  priceRange: string;
   rating?: number;
   imageQuery: string;
   image: string;
+  amenities: string[];
+  bestFor: string[];
+  category: 'Stay';
+  tags?: string[];
+  coordinates?: { lat: number; lng: number };
 }
 
 export interface DestinationGuideData extends Omit<RawGuide, 'popularPlaces' | 'activities' | 'hotels'> {
+  heroImage?: string;
   popularPlaces: EnrichedPlace[];
   activities: EnrichedActivity[];
   hotels: EnrichedHotel[];
@@ -124,31 +149,14 @@ export interface DestinationGuideData extends Omit<RawGuide, 'popularPlaces' | '
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=800&auto=format&fit=crop';
 
-async function fetchUnsplashImage(query: string, fallback?: string): Promise<string> {
-  const accessKey = process.env.UNSPLASH_ACCESS_KEY || process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY || '';
-  if (!accessKey) return FALLBACK_IMAGE;
-
-  const tryFetch = async (q: string) => {
-    try {
-      const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(q)}&per_page=1&orientation=landscape&client_id=${accessKey}`;
-      const res = await fetch(url, { next: { revalidate: 3600 } }); // Cache for 1 hour
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.results?.[0]?.urls?.regular || null;
-    } catch {
-      return null;
-    }
-  };
-
-  const primary = await tryFetch(query);
-  if (primary) return primary;
-
-  if (fallback) {
-    const secondary = await tryFetch(fallback);
-    if (secondary) return secondary;
-  }
-
-  return FALLBACK_IMAGE;
+/**
+ * Fetches an image from Unsplash with caching and resilient fallbacks.
+ */
+async function fetchUnsplashImage(query: string, fallback?: string, cacheKey?: string): Promise<string> {
+  return fetchPremiumImage(query, {
+    fallbackQuery: fallback,
+    cacheKey: cacheKey
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -156,29 +164,44 @@ async function fetchUnsplashImage(query: string, fallback?: string): Promise<str
 // ─────────────────────────────────────────────────────────────────────────────
 async function enrichWithImages(raw: RawGuide): Promise<DestinationGuideData> {
   const dest = raw.destination;
+  const heroImage = await fetchUnsplashImage(
+    generateContextualQuery({ destination: dest, category: 'hero' }),
+    `${dest} tourism landscape`
+  );
+
   const [places, activities, hotels] = await Promise.all([
     Promise.all(
-      raw.popularPlaces.map(async (p) => ({
-        ...p,
-        image: await fetchUnsplashImage(p.imageQuery, `${dest} landmark tourism`),
-      }))
+      raw.popularPlaces.map(async (p) => {
+        const query = generateContextualQuery({ destination: dest, name: p.name, category: 'landmark' });
+        return {
+          ...p,
+          image: await fetchUnsplashImage(p.imageQuery || query, query, `${dest}-${p.name}`),
+        };
+      })
     ),
     Promise.all(
-      raw.activities.map(async (a) => ({
-        ...a,
-        image: await fetchUnsplashImage(a.imageQuery, `${dest} adventure outdoor`),
-      }))
+      raw.activities.map(async (a) => {
+        const query = generateContextualQuery({ destination: dest, name: a.name, category: 'activity', season: a.season });
+        return {
+          ...a,
+          image: await fetchUnsplashImage(a.imageQuery || query, query, `${dest}-${a.name}`),
+        };
+      })
     ),
     Promise.all(
-      raw.hotels.map(async (h) => ({
-        ...h,
-        image: await fetchUnsplashImage(h.imageQuery, `${dest} luxury hotel stay`),
-      }))
+      raw.hotels.map(async (h) => {
+        const query = generateContextualQuery({ destination: dest, name: h.name, category: 'stay' });
+        return {
+          ...h,
+          image: await fetchUnsplashImage(h.imageQuery || query, query, `${dest}-${h.name}`),
+        };
+      })
     ),
   ]);
 
   return {
     ...raw,
+    heroImage, // Attach the enriched hero image
     popularPlaces: places,
     activities,
     hotels,
@@ -250,25 +273,45 @@ function buildFallback(destination: string): DestinationGuideData {
       location: isManali ? 'Himachal Pradesh, India' : 'State, India',
     },
     popularPlaces,
-    activities: [
+    activities: isManali ? [
+      { name: 'Paragliding in Solang', description: 'Fly high over the Solang Valley and witness the snow-capped peaks.', price: '₹3000', location: 'Solang Valley', season: 'Summer', difficulty: 'Moderate', intensity: 'High', imageQuery: 'paragliding Manali mountains', image: FALLBACK_IMAGE, category: 'Adventure', rating: 4.8, duration: '1 hour', bestFor: ['Adrenaline Junkies'], timing: '9:00 AM - 4:00 PM' },
+      { name: 'Skiing in Solang', description: 'Glide down the slopes of Solang Valley during the winter months.', price: '₹1500', location: 'Solang Valley', season: 'Winter', difficulty: 'Challenging', intensity: 'High', imageQuery: 'skiing Manali Solang', image: FALLBACK_IMAGE, category: 'Adventure', rating: 4.7, duration: '2 hours', bestFor: ['Families', 'Adventure Seekers'], timing: '10:00 AM - 4:00 PM' },
+      { name: 'Beas River Rafting', description: 'Experience the thrill of whitewater rafting on the Beas River.', price: '₹1200', location: 'Kullu', season: 'Summer', difficulty: 'Moderate', intensity: 'High', imageQuery: 'river rafting Kullu Manali', image: FALLBACK_IMAGE, category: 'Adventure', rating: 4.6, duration: '1.5 hours', bestFor: ['Groups', 'Friends'], timing: '10:00 AM - 3:00 PM' },
+      { name: 'Old Manali Cafe Crawl', description: 'Explore the vibrant food scene and relaxed vibe of Old Manali cafes.', price: '₹1000', location: 'Old Manali', season: 'All-Season', difficulty: 'Easy', intensity: 'Low', imageQuery: 'Old Manali cafes interior', image: FALLBACK_IMAGE, category: 'Culture', rating: 4.9, duration: '3 hours', bestFor: ['Couples', 'Solo Travelers'], timing: '11:00 AM - 11:00 PM' }
+    ] : [
       {
-        name: isManali ? 'Paragliding in Solang' : 'City Heritage Walk',
-        price: isManali ? '₹3000' : '₹500',
-        location: isManali ? 'Solang Valley' : 'Old City',
-        bestSeason: 'Spring/Summer',
-        imageQuery: isManali ? 'paragliding Manali mountains' : `${destination} sightseeing walk`,
+        name: 'City Heritage Walk',
+        description: 'Discover the hidden stories and architecture of the old city.',
+        price: '₹500',
+        location: 'Old City',
+        season: 'All-Season',
+        difficulty: 'Easy',
+        intensity: 'Low',
+        imageQuery: `${destination} sightseeing walk`,
         image: FALLBACK_IMAGE,
-        category: 'Adventure',
+        category: 'Culture',
+        rating: 4.5,
+        duration: '2 hours',
+        bestFor: ['Families', 'History Buffs'],
+        timing: '8:00 AM - 11:00 AM'
       },
     ],
-    hotels: [
+    hotels: isManali ? [
+      { name: 'Span Resort & Spa', description: 'Luxury riverside resort offering elite amenities and stunning views.', type: 'Luxury Resort', priceRange: '₹15000 - ₹25000', rating: 4.9, imageQuery: 'Span Resort Manali riverside luxury', image: FALLBACK_IMAGE, amenities: ['Pool', 'Spa', 'Riverside', 'Gym'], bestFor: ['Couples', 'Families'], category: 'Stay', tags: ['Luxury', 'Riverside'] },
+      { name: 'Zostel Manali (Old Manali)', description: 'The ultimate backpacker hub with a vibrant community and mountain views.', type: 'Backpacker Hostel', priceRange: '₹800 - ₹2500', rating: 4.7, imageQuery: 'Zostel Manali Old Manali mountain view', image: FALLBACK_IMAGE, amenities: ['Wifi', 'Cafe', 'Common Room', 'Tours'], bestFor: ['Solo Travelers', 'Friends'], category: 'Stay', tags: ['Budget', 'Vibe'] },
+      { name: 'The Himalayan', description: 'Boutique castle-style hotel with a vintage charm and luxury feel.', type: 'Boutique Hotel', priceRange: '₹12000 - ₹18000', rating: 4.8, imageQuery: 'The Himalayan Manali castle hotel', image: FALLBACK_IMAGE, amenities: ['Pool', 'Fireplace', 'Garden', 'Restaurant'], bestFor: ['Couples', 'History Buffs'], category: 'Stay', tags: ['Boutique', 'Castle'] },
+      { name: 'Apple Orchard Homestay', description: 'Cozy traditional stay nestled within private apple orchards.', type: 'Homestay', priceRange: '₹3000 - ₹5000', rating: 4.6, imageQuery: 'Manali homestay apple orchard', image: FALLBACK_IMAGE, amenities: ['Home Food', 'Orchard Walk', 'Quiet'], bestFor: ['Families', 'Remote Work'], category: 'Stay', tags: ['Local', 'Peaceful'] }
+    ] : [
       {
-        name: `${destination} Heritage Resort`,
-        type: 'Luxury',
-        price: '₹5500/night',
-        rating: 4.7,
-        imageQuery: `${destination} luxury resort mountain view`,
+        name: `${destination} Grand Hotel`,
+        description: 'A centrally located stay with modern comforts and great service.',
+        type: 'Mid-Range Hotel',
+        priceRange: '₹4000 - ₹6000',
+        rating: 4.4,
+        imageQuery: `${destination} modern hotel exterior`,
         image: FALLBACK_IMAGE,
+        amenities: ['Wifi', 'Breakfast', 'Parking'],
+        bestFor: ['Families', 'Business'],
         category: 'Stay',
       },
     ],
@@ -319,8 +362,17 @@ STRICT RULES:
 - All places, activities, hotels MUST be real and specific to "${destination}"
 - imageQuery MUST be highly contextual and descriptive (e.g. "Solang Valley Manali snow paragliding adventure", "Old Manali cafe vibe river side")
 - Exactly 8-12 popularPlaces (MUST include: famous attractions, hidden gems, local cafes, shopping areas, scenic spots)
-- Exactly 6 activities (Adventure category)
-- Exactly 4-6 hotels (Stay category)
+- Exactly 12-15 activities:
+  - Generate a diverse mix of Summer, Winter, and All-Season experiences.
+  - Categories should include: Adventure, Relaxation, Culture, Food, Nature.
+  - Include specific details like difficulty, intensity, and "best for" tags.
+  - For snowy destinations (like Manali), ensure a strong split between summer trekking/paragliding and winter skiing/snowboarding.
+- Exactly 12-15 hotels (Stay category):
+  - Diversify accommodation types: Luxury Resorts, Boutique Hotels, Backpacker Hostels, Homestays, Cabins, Cottages, Glamping.
+  - Include realistic priceRange (e.g. "₹800 - ₹2500" for hostels, "₹15000+" for luxury).
+  - List 4-6 key amenities per stay.
+  - Specify "bestFor" tags (e.g. Couples, Families, Solo Travelers, Remote Work).
+  - Descriptions should be immersive and highlight the unique selling point.
 - Itinerary: 3–5 days covering the most iconic and interesting places
 - travelTips and packingGuide must be specific to "${destination}"'s climate and culture
 - quickFacts.altitude MUST be the real altitude in METERS (e.g. "2050")

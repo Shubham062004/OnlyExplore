@@ -23,6 +23,7 @@ import {
 } from "@/ai/flows/generateDestinationGuide";
 
 import { normalizeExplorerPoints, getSafeExplorerPoints } from "@/lib/explorer";
+import { safeImageResolver } from "@/lib/imageUtils";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -52,8 +53,8 @@ function DestinationHero({
   description: string;
   heroImage: string;
 }) {
-  const [src, setSrc] = useState(heroImage || FALLBACK_HERO);
-  useEffect(() => setSrc(heroImage || FALLBACK_HERO), [heroImage]);
+  const [src, setSrc] = useState(safeImageResolver(heroImage, title, FALLBACK_HERO));
+  useEffect(() => setSrc(safeImageResolver(heroImage, title, FALLBACK_HERO)), [heroImage, title]);
 
   return (
     <div className="relative w-full h-[520px] md:h-[640px] flex items-end overflow-hidden rounded-b-[3rem] md:rounded-b-[4rem]">
@@ -105,16 +106,15 @@ function GallerySection({
         <h3 className="text-3xl md:text-4xl font-black font-headline uppercase tracking-tighter">Experience Gallery</h3>
         <p className="text-muted-foreground font-medium">A curated visual journey through the best of {destination}.</p>
       </div>
-      
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
         {gallery.map((item, idx) => {
           const failed = failedIdx.has(idx);
           return (
             <div
               key={idx}
-              className={`relative overflow-hidden rounded-[2rem] bg-muted group cursor-pointer border border-border/50 shadow-xl shadow-black/5 ${
-                idx === 0 ? "col-span-2 row-span-2 h-[320px] md:h-[480px]" : "h-[150px] md:h-[230px]"
-              }`}
+              className={`relative overflow-hidden rounded-[2rem] bg-muted group cursor-pointer border border-border/50 shadow-xl shadow-black/5 ${idx === 0 ? "col-span-2 row-span-2 h-[320px] md:h-[480px]" : "h-[150px] md:h-[230px]"
+                }`}
             >
               {failed ? (
                 <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground">
@@ -132,7 +132,7 @@ function GallerySection({
                   />
                   {/* Overlay Gradient */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  
+
                   {/* Label Tag */}
                   <div className="absolute bottom-4 left-4 md:bottom-6 md:left-6 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-75">
                     <span className="bg-white/20 backdrop-blur-md border border-white/30 text-white text-[10px] md:text-xs font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full">
@@ -262,9 +262,9 @@ export default function DestinationContent({
 
         {/* 4. Map Explorer (Interactive) ─────────────────────────────────────── */}
         {isPremium && (
-          <MapExplorer 
-            points={explorerPoints} 
-            destination={destination} 
+          <MapExplorer
+            points={explorerPoints}
+            destination={destination}
             activeIndex={activeExplorerIndex}
             onIndexChange={setActiveExplorerIndex}
           />
@@ -308,6 +308,7 @@ export default function DestinationContent({
               <AdventureActivities
                 activities={guide.activities}
                 destination={destination}
+                onViewDetails={handlePlaceClick}
               />
             )}
 
@@ -316,6 +317,7 @@ export default function DestinationContent({
               <StayRecommendations
                 hotels={guide.hotels}
                 destination={destination}
+                onViewDetails={handlePlaceClick}
               />
             )}
 
@@ -336,7 +338,7 @@ export default function DestinationContent({
 
         {/* Nearby (all users) */}
         {guide.nearbyDestinations && guide.nearbyDestinations.length > 0 && (
-          <NearbyDestinations nearby={guide.nearbyDestinations} />
+          <NearbyDestinations nearby={guide.nearbyDestinations} destination={destination} />
         )}
 
         {/* 10. Tips + Packing ──────────────────────────────────────────────── */}
