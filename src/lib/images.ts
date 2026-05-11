@@ -1,4 +1,5 @@
-import { getDestinationImages, getImageUrl } from './imageService';
+import { getDestinationImages } from './imageService';
+import { getImageUrl } from './imageUtils';
 
 /**
  * Migration helper to bridge the new Gemini-powered image service 

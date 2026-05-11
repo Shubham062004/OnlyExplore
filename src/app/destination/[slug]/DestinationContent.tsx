@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Loader2, ImageOff, MapPin } from "lucide-react";
 import { PlaceModal } from "@/components/PlaceModal";
 import {
   QuickFacts,
-  InteractiveMap,
+  MapExplorer,
   TripPlannerCTA,
   AdventureActivities,
   StayRecommendations,
@@ -21,6 +21,8 @@ import {
   generateDestinationGuide,
   type DestinationGuideData,
 } from "@/ai/flows/generateDestinationGuide";
+
+import { normalizeExplorerPoints, getSafeExplorerPoints } from "@/lib/explorer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -162,6 +164,13 @@ export default function DestinationContent({
   const [loading, setLoading] = useState(true);
   const [galleryLoading, setGalleryLoading] = useState(true);
   const [selectedPlace, setSelectedPlace] = useState<any | null>(null);
+  const [activeExplorerIndex, setActiveExplorerIndex] = useState(0);
+
+  // Centralized points for synchronization
+  const explorerPoints = useMemo(() => {
+    const rawPoints = normalizeExplorerPoints(guide, destination);
+    return getSafeExplorerPoints(rawPoints, destination);
+  }, [guide, destination]);
 
   // ── Load data ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -252,13 +261,22 @@ export default function DestinationContent({
         )}
 
         {/* 4. Map Explorer (Interactive) ─────────────────────────────────────── */}
-        {isPremium && <MapExplorer guide={guide} destination={destination} />}
+        {isPremium && (
+          <MapExplorer 
+            points={explorerPoints} 
+            destination={destination} 
+            activeIndex={activeExplorerIndex}
+            onIndexChange={setActiveExplorerIndex}
+          />
+        )}
 
         {/* 5. Popular Places ───────────────────────────────────────────────── */}
-        {guide.popularPlaces && (
+        {explorerPoints.length > 0 && (
           <PopularPlaces
-            places={guide.popularPlaces}
+            places={explorerPoints}
             destination={destination}
+            activeIndex={activeExplorerIndex}
+            onIndexChange={setActiveExplorerIndex}
             onPlaceClick={handlePlaceClick}
           />
         )}
