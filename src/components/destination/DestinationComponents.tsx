@@ -860,7 +860,7 @@ const StayCard = memo(({
   const router = useRouter();
 
   const getAmenityIcon = (amenity: string) => {
-    const low = amenity.toLowerCase();
+    const low = amenity?.toLowerCase() || '';
     if (low.includes('wifi')) return <Wifi className="w-3.5 h-3.5" />;
     if (low.includes('pool') || low.includes('river')) return <Waves className="w-3.5 h-3.5" />;
     if (low.includes('tv')) return <Tv className="w-3.5 h-3.5" />;
@@ -963,9 +963,9 @@ export function StayRecommendations({
   const filtered = hotels.filter(h => {
     if (activeFilter === 'All') return true;
     const type = h.type?.toLowerCase() || '';
-    const tags = h.tags?.map((t: string) => t.toLowerCase()) || [];
+    const tags = Array.isArray(h.tags) ? h.tags.map((t: string) => t?.toLowerCase()) : [];
     const search = activeFilter.toLowerCase();
-    return type.includes(search) || tags.some((t: string) => t.includes(search));
+    return type.includes(search) || tags.some((t: string) => t?.includes(search));
   });
 
   return (
@@ -1432,7 +1432,7 @@ export function TravelPreparation({
     localStorage.setItem(`packing-${destination}`, JSON.stringify(newChecked));
   };
 
-  const totalItems = packing.reduce((acc, cat) => acc + cat.items.length, 0);
+  const totalItems = (packing || []).reduce((acc, cat) => acc + (cat?.items?.length || 0), 0);
   const checkedCount = Object.values(checkedItems).filter(Boolean).length;
   const progress = totalItems > 0 ? (checkedCount / totalItems) * 100 : 0;
 
@@ -1498,13 +1498,13 @@ export function TravelPreparation({
            </div>
 
            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mt-10">
-              {packing.map((cat, i) => (
+              {packing?.map((cat, i) => (
                 <div key={i} className="space-y-4">
                    <h5 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary" /> {cat.category}
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary" /> {cat?.category || 'General'}
                    </h5>
                    <div className="space-y-3">
-                      {cat.items.map((item: any, j: number) => (
+                      {cat?.items?.map((item: any, j: number) => (
                         <button
                           key={j}
                           onClick={() => toggleItem(item.name)}
@@ -1535,19 +1535,21 @@ export function TravelPreparation({
 
         {/* Pro Travel Tips */}
         <div className="lg:col-span-5 space-y-8">
-           {tips.map((group, i) => (
+           {tips?.map((group, i) => {
+              const catName = group?.category || 'General';
+              return (
               <div key={i} className="bg-muted/30 border border-border/50 rounded-[2.5rem] p-8 hover:bg-muted/50 transition-colors group">
                  <div className="flex items-center gap-4 mb-6">
                     <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
-                       {group.category.includes('Transport') ? <Navigation className="w-5 h-5" /> : 
-                        group.category.includes('ATM') || group.category.includes('Cash') ? <Wallet className="w-5 h-5" /> : 
-                        group.category.includes('Safety') ? <ShieldCheck className="w-5 h-5" /> : 
+                       {catName.includes('Transport') ? <Navigation className="w-5 h-5" /> : 
+                        catName.includes('ATM') || catName.includes('Cash') ? <Wallet className="w-5 h-5" /> : 
+                        catName.includes('Safety') ? <ShieldCheck className="w-5 h-5" /> : 
                         <Info className="w-5 h-5" />}
                     </div>
-                    <h5 className="font-black font-headline uppercase text-lg group-hover:text-primary transition-colors">{group.category}</h5>
+                    <h5 className="font-black font-headline uppercase text-lg group-hover:text-primary transition-colors">{catName}</h5>
                  </div>
                  <div className="space-y-4">
-                    {group.tips.map((tip: string, j: number) => (
+                    {group?.tips?.map((tip: string, j: number) => (
                        <div key={j} className="flex items-start gap-3 text-sm text-muted-foreground font-medium">
                           <div className="w-1 h-1 rounded-full bg-primary mt-2 shrink-0" />
                           <p className="leading-relaxed">{tip}</p>
@@ -1555,7 +1557,8 @@ export function TravelPreparation({
                     ))}
                  </div>
               </div>
-           ))}
+              );
+           })}
 
            {/* Emergency Quick Action */}
            <div className="bg-primary text-white p-8 rounded-[2.5rem] shadow-2xl shadow-primary/20 flex items-center justify-between group cursor-pointer overflow-hidden relative">

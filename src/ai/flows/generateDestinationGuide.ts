@@ -361,8 +361,8 @@ function buildFallback(destination: string): DestinationGuideData {
     ],
     rentals: [{ name: 'Local Bike Hub', type: 'Bike', cost: '₹800/day', rating: 4.5, location: 'City Center', bestFor: 'Mountain exploration', imageQuery: 'Royal Enfield bike' }],
     nearbyDestinations: isManali ? [{ name: 'Kasol', distance: '75 km' }, { name: 'Rohtang Pass', distance: '51 km' }] : [],
-    travelTips: ['Carry valid ID', 'Respect local traditions', 'Check weather before transit'],
-    packingGuide: ['Comfortable walking shoes', 'Layered clothing', 'Universal power adapter'],
+    travelTips: [{ category: 'General', tips: ['Carry valid ID', 'Respect local traditions', 'Check weather before transit'] }],
+    packingGuide: [{ category: 'Essentials', items: [{ name: 'Comfortable walking shoes', priority: 'Essential' }, { name: 'Layered clothing', priority: 'Recommended' }, { name: 'Universal power adapter', priority: 'Optional' }] }],
   };
 }
 
