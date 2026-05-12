@@ -36,22 +36,23 @@ export function generateContextualQuery(params: {
   vibe?: string;
   season?: string;
 }): string {
-  const { destination, name, category, vibe, season } = params;
-  const base = name ? `${name} in ${destination}` : destination;
-  
-  const mood = vibe || 'cinematic travel photography';
-  const time = season ? `${season} season` : 'golden hour';
-
-  const categoryModifiers = {
-    hero: 'stunning aerial landscape wide angle 4k',
-    landmark: 'iconic landmark heritage architecture high quality',
-    activity: 'action shot adventure exploration outdoor',
-    stay: 'luxury resort boutique hotel interior exterior architectural',
-    cafe: 'aesthetic cozy cafe food coffee table view',
-    nature: 'scenic nature landscape mountains river forest'
+  const { destination, name, category } = params;
+  const categoryModifiers: Record<string, string> = {
+    hero: 'landscape',
+    landmark: 'landmark',
+    activity: 'adventure',
+    stay: 'hotel',
+    cafe: 'cafe',
+    nature: 'nature'
   };
 
-  return `${base} ${categoryModifiers[category]} ${mood} ${time} tourism professional`.trim();
+  const modifier = categoryModifiers[category] || '';
+  
+  // Unsplash search works best with 2-4 keywords. Too many keywords = 0 results.
+  if (name) {
+    return `${name} ${destination}`.trim();
+  }
+  return `${destination} ${modifier}`.trim();
 }
 
 /**
@@ -86,7 +87,7 @@ export async function fetchPremiumImage(query: string, options: {
 
   const tryFetch = async (q: string) => {
     try {
-      const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(q)}&per_page=5&orientation=landscape&client_id=${accessKey}`;
+      const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(q)}&per_page=15&orientation=landscape&client_id=${accessKey}`;
       const res = await fetch(url, { next: { revalidate: 86400 } }); // Cache API response for 24h
       if (!res.ok) return null;
       const data = await res.json();
@@ -119,7 +120,7 @@ export async function fetchPremiumImage(query: string, options: {
       ).catch(err => console.error("Cache save error:", err));
     }
 
-    return images[0];
+    return images[Math.floor(Math.random() * images.length)];
   }
 
   // 3. Absolute Fallback
@@ -127,8 +128,30 @@ export async function fetchPremiumImage(query: string, options: {
 }
 
 /**
- * Returns a high-quality fallback image based on the destination name in the query.
+ * Fetches multiple images for a category to distribute across cards (minimizes API calls).
  */
+export async function fetchBulkPremiumImages(query: string, count: number = 15): Promise<string[]> {
+  const accessKey = process.env.UNSPLASH_ACCESS_KEY || process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY || '';
+  if (!accessKey) {
+    return Array(count).fill(getEmergencyFallback(query));
+  }
+
+  try {
+    const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${count}&orientation=landscape&client_id=${accessKey}`;
+    const res = await fetch(url, { next: { revalidate: 86400 } });
+    if (!res.ok) return Array(count).fill(getEmergencyFallback(query));
+    
+    const data = await res.json();
+    if (data.results && data.results.length > 0) {
+      return data.results.map((r: any) => r.urls.regular);
+    }
+  } catch (e) {
+    console.warn("Bulk fetch error:", e);
+  }
+  
+  return Array(count).fill(getEmergencyFallback(query));
+}
+
 function getEmergencyFallback(query: string): string {
   const q = query.toLowerCase();
   for (const [dest, images] of Object.entries(CURATED_FALLBACKS)) {
@@ -136,7 +159,15 @@ function getEmergencyFallback(query: string): string {
       return images[Math.floor(Math.random() * images.length)];
     }
   }
-  return FALLBACK_IMAGE;
+  const generalFallbacks = [
+    "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1000&auto=format&fit=crop", // Canyon
+    "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=1000&auto=format&fit=crop", // Lake
+    "https://images.unsplash.com/photo-1503220317375-aaad61436b1b?q=80&w=1000&auto=format&fit=crop", // Path
+    "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1000&auto=format&fit=crop", // Beach
+    "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?q=80&w=1000&auto=format&fit=crop", // City
+    "https://images.unsplash.com/photo-1501504905252-473c47e087f8?q=80&w=1000&auto=format&fit=crop"  // Cafe
+  ];
+  return generalFallbacks[Math.floor(Math.random() * generalFallbacks.length)];
 }
 
 /**

@@ -21,8 +21,8 @@ import { formatAltitude, getTemperatureRange, formatLocation } from "@/lib/desti
 import { ExplorerPoint } from "@/lib/explorer";
 import { safeImageResolver } from "@/lib/imageUtils";
 
-const FALLBACK_IMAGE =
-  "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1000&auto=format&fit=crop";
+// Use a generic transparent pixel or let CSS backgrounds handle missing images
+const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 export function DestinationSkeleton() {
   return (
@@ -431,7 +431,7 @@ export const PlaceCard = memo(function PlaceCard({
           src={safeImageResolver(place.image, `${place.name} ${destination}`)}
           alt={place.name}
           className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-          onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+          onError={(e) => { e.currentTarget.src = TRANSPARENT_PIXEL; }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
         
@@ -672,7 +672,7 @@ const ActivityCard = memo(({
           src={safeImageResolver(activity.image, `${activity.name} ${destination}`)}
           alt={activity.name}
           className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-          onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+          onError={(e) => { e.currentTarget.src = TRANSPARENT_PIXEL; }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
         
@@ -880,7 +880,7 @@ const StayCard = memo(({
           src={safeImageResolver(hotel.image, `${hotel.name} ${destination}`)}
           alt={hotel.name}
           className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-          onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+          onError={(e) => { e.currentTarget.src = TRANSPARENT_PIXEL; }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
         
@@ -1223,7 +1223,7 @@ export function RentalsSection({ rentals, onViewDetails }: { rentals: any[]; onV
                 src={safeImageResolver(rental.image, `${rental.name} ${rental.type}`)}
                 alt={rental.name}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+                onError={(e) => { e.currentTarget.src = TRANSPARENT_PIXEL; }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-60" />
               <div className="absolute top-4 left-4">

@@ -3,7 +3,83 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { connectDB } from '@/lib/mongodb';
 import DestinationGuide from '@/models/DestinationGuide';
-import { fetchPremiumImage, generateContextualQuery } from '@/lib/imageService';
+import { fetchPremiumImage, fetchBulkPremiumImages, generateContextualQuery } from '@/lib/imageService';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enrich raw AI output with real images
+// ─────────────────────────────────────────────────────────────────────────────
+async function enrichWithImages(raw: RawGuide): Promise<DestinationGuideData> {
+  const dest = raw.destination;
+  
+  // 1. Fetch bulk images for each category to minimize API calls (6 calls total instead of 40+)
+  const [
+    heroImage,
+    landmarkImages,
+    activityImages,
+    hotelImages,
+    rentalImages,
+    natureImages
+  ] = await Promise.all([
+    fetchPremiumImage(`${dest} landscape`, { forceFresh: true }),
+    fetchBulkPremiumImages(`${dest} landmark`, 15),
+    fetchBulkPremiumImages(`${dest} adventure`, 15),
+    fetchBulkPremiumImages(`${dest} hotel`, 10),
+    fetchBulkPremiumImages(`${dest} vehicle`, 10),
+    fetchBulkPremiumImages(`${dest} nature`, 10),
+  ]);
+
+  // Helper to safely get an image from the bulk array
+  const popImage = (arr: string[], fallbackUrl: string) => {
+    if (arr && arr.length > 0) {
+      // Rotate the array to distribute images
+      const img = arr.shift();
+      if (img) arr.push(img); // push back to end in case we need to reuse
+      return img || fallbackUrl;
+    }
+    return fallbackUrl;
+  };
+
+  const places = raw.popularPlaces.map(p => ({
+    ...p,
+    image: popImage(landmarkImages, heroImage)
+  }));
+
+  const activities = raw.activities.map(a => ({
+    ...a,
+    image: popImage(activityImages, heroImage)
+  }));
+
+  const hotels = raw.hotels.map(h => ({
+    ...h,
+    image: popImage(hotelImages, heroImage)
+  }));
+
+  const rentals = (raw.rentals || []).map(r => ({
+    ...r,
+    image: popImage(rentalImages, heroImage)
+  }));
+
+  const nearby = (raw.nearbyDestinations || []).map(n => ({
+    ...n,
+    image: popImage(natureImages, heroImage)
+  }));
+
+  const similar = (raw.similarDestinations || []).map(s => ({
+    ...s,
+    image: popImage(landmarkImages, heroImage)
+  }));
+
+  return {
+    ...raw,
+    heroImage, // Attach the enriched hero image
+    popularPlaces: places,
+    activities,
+    hotels,
+    rentals,
+    nearbyDestinations: nearby,
+    similarDestinations: similar,
+  };
+}
 import { DestinationService, RealPlace } from '@/lib/destinationService';
 import { format } from 'date-fns';
 
@@ -167,11 +243,14 @@ export interface EnrichedHotel {
   coordinates?: { lat: number; lng: number };
 }
 
-export interface DestinationGuideData extends Omit<RawGuide, 'popularPlaces' | 'activities' | 'hotels'> {
+export interface DestinationGuideData extends Omit<RawGuide, 'popularPlaces' | 'activities' | 'hotels' | 'rentals' | 'nearbyDestinations' | 'similarDestinations'> {
   heroImage?: string;
   popularPlaces: EnrichedPlace[];
   activities: EnrichedActivity[];
   hotels: EnrichedHotel[];
+  rentals: (RawGuide['rentals'][0] & { image: string })[];
+  nearbyDestinations: (RawGuide['nearbyDestinations'][0] & { image: string })[];
+  similarDestinations: (RawGuide['similarDestinations'][0] & { image: string })[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -190,54 +269,7 @@ async function fetchUnsplashImage(query: string, fallback?: string, cacheKey?: s
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Enrich raw AI output with real images
-// ─────────────────────────────────────────────────────────────────────────────
-async function enrichWithImages(raw: RawGuide): Promise<DestinationGuideData> {
-  const dest = raw.destination;
-  const heroImage = await fetchUnsplashImage(
-    generateContextualQuery({ destination: dest, category: 'hero' }),
-    `${dest} tourism landscape`
-  );
 
-  const [places, activities, hotels] = await Promise.all([
-    Promise.all(
-      raw.popularPlaces.map(async (p) => {
-        const query = generateContextualQuery({ destination: dest, name: p.name, category: 'landmark' });
-        return {
-          ...p,
-          image: await fetchUnsplashImage(p.imageQuery || query, query, `${dest}-${p.name}`),
-        };
-      })
-    ),
-    Promise.all(
-      raw.activities.map(async (a) => {
-        const query = generateContextualQuery({ destination: dest, name: a.name, category: 'activity', season: a.season });
-        return {
-          ...a,
-          image: await fetchUnsplashImage(a.imageQuery || query, query, `${dest}-${a.name}`),
-        };
-      })
-    ),
-    Promise.all(
-      raw.hotels.map(async (h) => {
-        const query = generateContextualQuery({ destination: dest, name: h.name, category: 'stay' });
-        return {
-          ...h,
-          image: await fetchUnsplashImage(h.imageQuery || query, query, `${dest}-${h.name}`),
-        };
-      })
-    ),
-  ]);
-
-  return {
-    ...raw,
-    heroImage, // Attach the enriched hero image
-    popularPlaces: places,
-    activities,
-    hotels,
-  };
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fallback guide when AI fails — now with more comprehensive data
@@ -359,8 +391,9 @@ function buildFallback(destination: string): DestinationGuideData {
         ]
       },
     ],
-    rentals: [{ name: 'Local Bike Hub', type: 'Bike', cost: '₹800/day', rating: 4.5, location: 'City Center', bestFor: 'Mountain exploration', imageQuery: 'Royal Enfield bike' }],
-    nearbyDestinations: isManali ? [{ name: 'Kasol', distance: '75 km' }, { name: 'Rohtang Pass', distance: '51 km' }] : [],
+    rentals: [{ name: 'Local Bike Hub', type: 'Bike', cost: '₹800/day', rating: 4.5, location: 'City Center', bestFor: 'Mountain exploration', imageQuery: 'Royal Enfield bike', image: FALLBACK_IMAGE }],
+    nearbyDestinations: isManali ? [{ name: 'Kasol', roadDistance: '75 km', image: FALLBACK_IMAGE }, { name: 'Rohtang Pass', roadDistance: '51 km', image: FALLBACK_IMAGE }] : [],
+    similarDestinations: [{ name: isManali ? 'Shimla' : 'Jaipur', image: FALLBACK_IMAGE }],
     travelTips: [{ category: 'General', tips: ['Carry valid ID', 'Respect local traditions', 'Check weather before transit'] }],
     packingGuide: [{ category: 'Essentials', items: [{ name: 'Comfortable walking shoes', priority: 'Essential' }, { name: 'Layered clothing', priority: 'Recommended' }, { name: 'Universal power adapter', priority: 'Optional' }] }],
   };
