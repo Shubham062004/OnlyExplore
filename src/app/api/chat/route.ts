@@ -5,7 +5,7 @@ import { z } from "genkit";
 const ChatResponseSchema = z.object({
   text: z.string().optional(),
   places: z.array(z.object({
-    type: z.literal("place"),
+    type: z.enum(["place"]),
     name: z.string(),
     description: z.string(),
     rating: z.number().optional(),
@@ -17,7 +17,7 @@ const ChatResponseSchema = z.object({
     imageQuery: z.string()
   })).optional(),
   hotel: z.object({
-    type: z.literal("hotel"),
+    type: z.enum(["hotel"]),
     name: z.string(),
     description: z.string(),
     price: z.string(),
