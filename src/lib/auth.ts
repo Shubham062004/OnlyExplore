@@ -96,7 +96,7 @@ export const authOptions: NextAuthOptions = {
           phone: user.phone,
           name: user.name,
           role: user.role,
-          plan: user.plan || "free",
+          plan: "pro",
           emailVerified: user.emailVerified || false,
           phoneVerified: user.phoneVerified || false,
           twoFactorEnabled: user.twoFactorEnabled || false,
@@ -119,8 +119,8 @@ export const authOptions: NextAuthOptions = {
       }
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role || "free";
-        token.plan = (user as any).plan || "free";
+        token.role = (user as any).role || "user";
+        token.plan = "pro";
         token.phone = (user as any).phone;
         token.emailVerified = (user as any).emailVerified || false;
         token.phoneVerified = (user as any).phoneVerified || false;
@@ -136,7 +136,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as any).id = token.id as string;
         (session.user as any).role = token.role as string;
-        (session.user as any).plan = token.plan as string;
+        (session.user as any).plan = "pro";
         (session.user as any).phone = token.phone as string | undefined;
         (session.user as any).emailVerified = token.emailVerified as boolean;
         (session.user as any).phoneVerified = token.phoneVerified as boolean;

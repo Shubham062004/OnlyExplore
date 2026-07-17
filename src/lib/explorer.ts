@@ -1,5 +1,5 @@
 import { safeImageResolver } from './imageUtils';
-import type { DestinationGuideData } from '@/ai/flows/generateDestinationGuide';
+import type { DestinationGuideData } from '@/services/destination.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types & Schemas

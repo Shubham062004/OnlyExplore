@@ -7,19 +7,15 @@ const DEV_USERS = [
     email: "pro@test.com",
     password: "Test@123",
     name: "Pro User",
-    plan: "pro" as const,
     role: "pro",
     emailVerified: true,
-    subscriptionStatus: "active" as const,
   },
   {
     email: "user@test.com",
     password: "Test@123",
     name: "Normal User",
-    plan: "free" as const,
     role: "free",
     emailVerified: true,
-    subscriptionStatus: null,
   },
 ];
 
@@ -46,13 +42,11 @@ export async function seedUsers(): Promise<void> {
         email: userData.email,
         password: hashedPassword,
         name: userData.name,
-        plan: userData.plan,
         role: userData.role,
         emailVerified: userData.emailVerified,
-        subscriptionStatus: userData.subscriptionStatus,
       });
 
-      console.log(`🌱 [SeedUsers] Created dev user: ${userData.email} (${userData.plan})`);
+      console.log(`🌱 [SeedUsers] Created dev user: ${userData.email}`);
     }
   } catch (err) {
     // Non-fatal: log and continue — do not crash the app

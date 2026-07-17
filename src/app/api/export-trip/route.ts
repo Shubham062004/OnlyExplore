@@ -18,7 +18,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Itinerary data is required' }, { status: 400 });
     }
 
-    return new Promise((resolve, reject) => {
+    return new Promise<NextResponse>((resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 });
         const buffers: Buffer[] = [];

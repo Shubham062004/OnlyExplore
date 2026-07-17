@@ -28,8 +28,7 @@ import {
   CircleDollarSign,
 } from 'lucide-react';
 
-import { generateTravelItinerary } from '@/ai/flows/generate-travel-itinerary';
-import { editItinerary } from '@/ai/flows/edit-travel-itinerary';
+// Server Action imports removed in favor of secure REST API wrappers to resolve RSC Webpack compilation issues.
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -476,10 +475,19 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     setChatHistory([]);
 
     try {
-      const plan = (session?.user as any)?.plan || 'free';
+      const plan = 'pro';
       console.log("Sending request with values:", { ...values, plan });
 
-      const result = await generateTravelItinerary({ ...values, plan });
+      const res = await fetch("/api/itinerary/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...values, plan }),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to generate itinerary");
+      }
+      const json = await res.json();
+      const result = json.success ? json.data : (json.data || json);
 
       console.log("AI Generated Travel Data:", result);
 
@@ -551,7 +559,16 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     setChatHistory(prev => [...prev, userMessage]);
 
     try {
-      const result = await editItinerary({ itinerary: lastMessage.rawItinerary, editRequest: values.editRequest });
+      const res = await fetch("/api/itinerary/edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itinerary: lastMessage.rawItinerary, editRequest: values.editRequest }),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to edit itinerary");
+      }
+      const json = await res.json();
+      const result = json.success ? json.data : (json.data || json);
       if (result.updatedItinerary) {
         parseAndSetItinerary(result.updatedItinerary, 'edit');
 

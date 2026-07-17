@@ -51,6 +51,7 @@ export async function editItinerary(input: EditItineraryInput): Promise<EditItin
 
 const prompt = ai.definePrompt({
   name: 'editItineraryPrompt',
+  model: 'googleai/gemini-2.5-flash',
   input: {schema: EditItineraryInputSchema},
   output: {
       schema: EditItineraryOutputSchema,

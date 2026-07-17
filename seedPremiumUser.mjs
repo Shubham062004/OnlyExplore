@@ -21,7 +21,6 @@ async function seedPremiumUser() {
       email: { type: String, unique: true },
       password: { type: String },
       role: { type: String },
-      plan: { type: String },
       emailVerified: { type: Boolean },
     }, { strict: false });
 
@@ -30,7 +29,6 @@ async function seedPremiumUser() {
     const existingUser = await User.findOne({ email });
 
     if (existingUser) {
-      existingUser.plan = 'pro';
       existingUser.role = 'user';
       existingUser.emailVerified = true;
       existingUser.password = hashedPassword;
@@ -42,7 +40,6 @@ async function seedPremiumUser() {
         email,
         password: hashedPassword,
         role: 'user',
-        plan: 'pro',
         emailVerified: true,
       });
       console.log('✅ Created new premium user:', email);

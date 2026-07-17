@@ -15,22 +15,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/api/auth/signin", req.url));
   }
 
-  if (token.plan !== "pro") {
-    if (isApiRoute) {
-      return NextResponse.json({ error: "Upgrade required" }, { status: 403 });
-    }
-    return NextResponse.redirect(new URL("/profile", req.url));
-  }
-
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    "/dashboard/:path*",
-    "/premium/:path*",
-    "/pro/:path*",
-    "/api/premium/:path*",
-    "/api/pro/:path*",
+    "/chat/:path*",
+    "/profile/:path*",
+    "/api/chats/:path*",
+    "/api/messages/:path*",
   ],
 };

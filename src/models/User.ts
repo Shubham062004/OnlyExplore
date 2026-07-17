@@ -5,10 +5,6 @@ export interface IUser extends Document {
   email?: string;
   password?: string;
   role: string;
-  stripeCustomerId?: string;
-  stripeSubscriptionId?: string;
-  subscriptionStatus?: "active" | "canceled" | "incomplete" | null;
-  plan?: "free" | "pro";
   emailVerified?: boolean;
   verificationToken?: string;
   verificationTokenExpires?: Date;
@@ -32,10 +28,6 @@ const UserSchema = new Schema<IUser>(
     email: { type: String, required: false, unique: true, sparse: true },
     password: { type: String, required: false },
     role: { type: String, default: "free" },
-    stripeCustomerId: { type: String, required: false },
-    stripeSubscriptionId: { type: String, required: false },
-    subscriptionStatus: { type: String, required: false, enum: ["active", "canceled", "incomplete", null] },
-    plan: { type: String, default: "free", enum: ["free", "pro"] },
     emailVerified: { type: Boolean, default: false },
     verificationToken: { type: String, required: false },
     verificationTokenExpires: { type: Date, required: false },

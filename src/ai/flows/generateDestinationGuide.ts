@@ -147,7 +147,7 @@ const DestinationGuideSchema = z.object({
     coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
     amenities: z.array(z.string()),
     bestFor: z.array(z.string()),
-    category: z.literal('Stay'),
+    category: z.string(),
     tags: z.array(z.string()).optional(),
   })),
   itinerary: z.array(z.object({
@@ -173,8 +173,28 @@ const DestinationGuideSchema = z.object({
     bestFor: z.string(),
     imageQuery: z.string(),
   })),
-  nearbyDestinations: z.array(DestinationRecommendationSchema),
-  similarDestinations: z.array(DestinationRecommendationSchema),
+  nearbyDestinations: z.array(z.object({
+    name: z.string(),
+    state: z.string().optional(),
+    roadDistance: z.string().optional(),
+    driveTime: z.string().optional(),
+    category: z.string().optional(),
+    vibeTags: z.array(z.string()).optional(),
+    bestSeason: z.string().optional(),
+    imageQuery: z.string().optional(),
+    coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
+  })),
+  similarDestinations: z.array(z.object({
+    name: z.string(),
+    state: z.string().optional(),
+    roadDistance: z.string().optional(),
+    driveTime: z.string().optional(),
+    category: z.string().optional(),
+    vibeTags: z.array(z.string()).optional(),
+    bestSeason: z.string().optional(),
+    imageQuery: z.string().optional(),
+    coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
+  })),
   travelTips: z.array(z.object({
     category: z.string(),
     tips: z.array(z.string()),
@@ -238,7 +258,7 @@ export interface EnrichedHotel {
   image: string;
   amenities: string[];
   bestFor: string[];
-  category: 'Stay';
+  category: string;
   tags?: string[];
   coordinates?: { lat: number; lng: number };
 }
@@ -396,6 +416,7 @@ function buildFallback(destination: string): DestinationGuideData {
     similarDestinations: [{ name: isManali ? 'Shimla' : 'Jaipur', image: FALLBACK_IMAGE }],
     travelTips: [{ category: 'General', tips: ['Carry valid ID', 'Respect local traditions', 'Check weather before transit'] }],
     packingGuide: [{ category: 'Essentials', items: [{ name: 'Comfortable walking shoes', priority: 'Essential' }, { name: 'Layered clothing', priority: 'Recommended' }, { name: 'Universal power adapter', priority: 'Optional' }] }],
+    safetyAlerts: [{ type: 'Weather', message: 'Check weather conditions before transit.', severity: 'Low' }],
   };
 }
 
@@ -409,7 +430,7 @@ export async function generateDestinationGuide(
   const cacheKey = destination.toLowerCase().trim();
   const currentMonth = format(new Date(), 'MMMM');
 
-  // ── 1. Check MongoDB cache ─────────────────────────────────────────────────
+  // ── 1. Check MongoDB cache (with 15-minute rolling expiration) ─────────────
   try {
     await connectDB();
     const cached = await DestinationGuide.findOne({
@@ -417,8 +438,16 @@ export async function generateDestinationGuide(
     });
 
     if (cached && cached.data && Object.keys(cached.data).length > 0) {
-      console.log('✅ Cache hit for:', destination);
-      return cached.data as DestinationGuideData;
+      const updatedAt = (cached as any).updatedAt || (cached as any).createdAt || new Date(0);
+      const cacheAgeMs = Date.now() - new Date(updatedAt).getTime();
+      const fifteenMinutesMs = 15 * 60 * 1000;
+      
+      if (cacheAgeMs < fifteenMinutesMs) {
+        console.log('✅ Fresh cache hit for:', destination, `(Age: ${Math.round(cacheAgeMs / 1000)}s)`);
+        return cached.data as DestinationGuideData;
+      } else {
+        console.log('🔄 Cache expired (older than 15 mins) for:', destination);
+      }
     }
   } catch (dbError) {
     console.warn('⚠️ MongoDB cache read failed:', dbError);
@@ -429,6 +458,7 @@ export async function generateDestinationGuide(
     console.log('🤖 Brainstorming intelligence for:', destination, `(Season: ${currentMonth})`);
 
     const { output: brainstorm } = await ai.generate({
+      model: 'googleai/gemini-2.5-flash',
       prompt: `
 You are a high-level travel strategist. 
 For "${destination}" in ${currentMonth}, identify:
@@ -472,6 +502,8 @@ STRICT RULES:
     ]);
 
     // Flatten and clean
+    const attractions = realAttractions.flat().filter((p, i, self) => self.findIndex(t => t.placeId === p.placeId) === i).slice(0, 10);
+    const hotels = realHotels.flat().filter((p, i, self) => self.findIndex(t => t.placeId === p.placeId) === i).slice(0, 10);
     const rentals = realRentals.flat().filter((p, i, self) => self.findIndex(t => t.placeId === p.placeId) === i).slice(0, 6);
     const nearbyRaw = realNearby.flat().filter((p, i, self) => self.findIndex(t => t.placeId === p.placeId) === i).slice(0, 6);
     const similarRaw = realSimilar.flat().filter((p, i, self) => self.findIndex(t => t.placeId === p.placeId) === i).slice(0, 6);
@@ -510,6 +542,7 @@ STRICT RULES:
     // ── 7. Stage 4: Final Assembly (Gemini) ────────────────────────────────────
     console.log(`✍️ Finalizing ${tripType}-focused guide with deep real data...`);
     const { output } = await ai.generate({
+      model: 'googleai/gemini-2.5-flash',
       prompt: `
 Synthesize a premium travel guide for "${destination}" specifically for a ${tripType} trip using this REAL-WORLD data:
 - Center: ${JSON.stringify(brainstorm.center)}

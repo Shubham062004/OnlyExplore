@@ -16,10 +16,7 @@ import {
   PopularPlaces,
   ItinerarySection,
 } from "@/components/destination/DestinationComponents";
-import {
-  generateDestinationGuide,
-  type DestinationGuideData,
-} from "@/ai/flows/generateDestinationGuide";
+import type { DestinationGuideData } from "@/services/destination.service";
 
 import { normalizeExplorerPoints, getSafeExplorerPoints } from "@/lib/explorer";
 import { safeImageResolver } from "@/lib/imageUtils";
@@ -180,14 +177,21 @@ export default function DestinationContent({
       setGalleryLoading(true);
 
       try {
-        // Server action (enriched with images) + gallery in parallel
-        const [guideData, imgRes] = await Promise.all([
-          generateDestinationGuide(destination),
+        // Fetch guide from secure API proxy and images in parallel
+        const [guideRes, imgRes] = await Promise.all([
+          fetch(`/api/destination-guide?destination=${encodeURIComponent(destination)}`),
           fetch(`/api/destination-images?destination=${encodeURIComponent(destination)}`),
         ]);
 
+        if (guideRes.ok && !cancelled) {
+          const guideJson = await guideRes.json();
+          const guideData = guideJson.success ? guideJson.data : (guideJson.data || guideJson);
+          if (guideData) {
+            setGuide(guideData);
+          }
+        }
+        
         if (!cancelled) {
-          setGuide(guideData);
           setLoading(false);
         }
 
@@ -235,7 +239,7 @@ export default function DestinationContent({
     );
   }
 
-  const isPremium = session?.user?.plan === "pro";
+  const isPremium = true;
 
   // ── Hero: first place image or gallery hero ────────────────────────────────
   const heroImage =
@@ -296,59 +300,39 @@ export default function DestinationContent({
         <TripPlannerCTA destination={destination} />
 
         {/* 7–10. Premium sections ──────────────────────────────────────────── */}
-        {!isPremium && (
-          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 text-center my-10 shadow-sm">
-            <h3 className="text-xl font-headline font-bold mb-2">Unlock the Full Experience</h3>
-            <p className="text-muted-foreground mb-4">
-              Upgrade to Pro to access interactive maps, curated activities,
-              premium hotel recommendations, and day-by-day itineraries for {destination}.
-            </p>
-            <a
-              href="/pricing"
-              className="inline-block bg-primary text-primary-foreground font-medium px-6 py-2 rounded-full hover:bg-primary/90 transition"
-            >
-              Upgrade to Pro
-            </a>
-          </div>
+        {/* 7. Activities */}
+        {guide.activities && guide.activities.length > 0 && (
+          <AdventureActivities
+            activities={guide.activities}
+            destination={destination}
+            onViewDetails={handlePlaceClick}
+          />
         )}
 
-        {isPremium && (
-          <>
-            {/* 7. Activities */}
-            {guide.activities && guide.activities.length > 0 && (
-              <AdventureActivities
-                activities={guide.activities}
-                destination={destination}
-                onViewDetails={handlePlaceClick}
-              />
-            )}
+        {/* 8. Hotels */}
+        {guide.hotels && guide.hotels.length > 0 && (
+          <StayRecommendations
+            hotels={guide.hotels}
+            destination={destination}
+            onViewDetails={handlePlaceClick}
+          />
+        )}
 
-            {/* 8. Hotels */}
-            {guide.hotels && guide.hotels.length > 0 && (
-              <StayRecommendations
-                hotels={guide.hotels}
-                destination={destination}
-                onViewDetails={handlePlaceClick}
-              />
-            )}
+        {/* 9. Itinerary */}
+        {guide.itinerary && guide.itinerary.length > 0 && (
+          <ItinerarySection
+            itinerary={guide.itinerary}
+            destination={destination}
+            onLocationClick={handleLocationClick}
+          />
+        )}
 
-            {/* 9. Itinerary */}
-            {guide.itinerary && guide.itinerary.length > 0 && (
-              <ItinerarySection
-                itinerary={guide.itinerary}
-                destination={destination}
-                onLocationClick={handleLocationClick}
-              />
-            )}
-
-            {/* Rentals */}
-            {guide.rentals && guide.rentals.length > 0 && (
-              <RentalsSection 
-                rentals={guide.rentals} 
-                onViewDetails={handlePlaceClick}
-              />
-            )}
-          </>
+        {/* Rentals */}
+        {guide.rentals && guide.rentals.length > 0 && (
+          <RentalsSection 
+            rentals={guide.rentals} 
+            onViewDetails={handlePlaceClick}
+          />
         )}
 
         {/* Nearby & Similar */}

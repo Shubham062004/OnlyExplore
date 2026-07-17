@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
 import DestinationImages from '@/models/DestinationImages';
+import { ImageService } from '@/services/image.service';
+import { cacheService } from '@/services/cache.service';
 
 const FALLBACK_HERO =
   'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1600&auto=format&fit=crop';
@@ -14,27 +16,6 @@ const CATEGORIES = [
   { key: 'culture', label: 'Local Culture', modifier: 'culture people tradition market' },
 ];
 
-async function fetchUnsplashImages(
-  query: string,
-  perPage = 5,
-  accessKey: string
-): Promise<string[]> {
-  const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(
-    query
-  )}&per_page=${perPage}&orientation=landscape&client_id=${accessKey}`;
-
-  try {
-    const res = await fetch(url, { next: { revalidate: 3600 } });
-    if (!res.ok) return [];
-
-    const data = await res.json();
-    return (data.results || []).map((img: any) => img.urls?.regular || img.urls?.small);
-  } catch (error) {
-    console.error(`Unsplash fetch error for query "${query}":`, error);
-    return [];
-  }
-}
-
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const destination = searchParams.get('destination');
@@ -44,46 +25,59 @@ export async function GET(req: NextRequest) {
   }
 
   const key = destination.toLowerCase().trim();
-  const ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY || process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY || '';
+  const redisKey = `destinationimages:${key}`;
 
   try {
-    await connectDB();
-
-    // 1. Check Cache
-    const existing = await DestinationImages.findOne({ destination: key });
-    if (existing) {
-      // Handle backward compatibility for string[] gallery
-      const formattedGallery = existing.gallery.map((item: any) => 
-        typeof item === 'string' ? { url: item, label: 'Experience' } : item
-      );
-
-      return NextResponse.json({
-        destination: existing.destination,
-        heroImage: existing.heroImage,
-        gallery: formattedGallery,
-        fromCache: true,
-      });
+    // 1. Check Redis Cache
+    const cachedData = await cacheService.get<any>(redisKey);
+    if (cachedData) {
+      console.log('⚡ Redis hit for destination images:', key);
+      return NextResponse.json(cachedData);
     }
 
-    if (!ACCESS_KEY) throw new Error('UNSPLASH_ACCESS_KEY not configured');
+    await connectDB();
 
-    // 2. Fetch Hero Image (Landscapes)
-    const heroPool = await fetchUnsplashImages(`${destination} cinematic travel landscape`, 3, ACCESS_KEY);
+    // 2. Check MongoDB Cache
+    const existing = await DestinationImages.findOne({ destination: key }).lean();
+    if (existing) {
+      const lastFetched = (existing as any).lastFetched || new Date(0);
+      const cacheAgeMs = Date.now() - new Date(lastFetched).getTime();
+      const fifteenMinutesMs = 15 * 60 * 1000;
+
+      if (cacheAgeMs < fifteenMinutesMs) {
+        const formattedGallery = existing.gallery.map((item: any) => 
+          typeof item === 'string' ? { url: item, label: 'Experience' } : { url: item.url, label: item.label }
+        );
+
+        const responseData = {
+          destination: existing.destination,
+          heroImage: existing.heroImage,
+          gallery: formattedGallery,
+          fromCache: true,
+        };
+
+        // Populate Redis cache
+        await cacheService.set(redisKey, responseData, 15 * 60);
+        return NextResponse.json(responseData);
+      }
+    }
+
+    // 3. Fetch Hero Image
+    const heroPool = await ImageService.fetchBulkPremiumImages(`${destination} cinematic travel landscape`, 3);
     const heroImage = heroPool[0] || FALLBACK_HERO;
 
-    // 3. Fetch Categorized Gallery
+    // 4. Fetch Categorized Gallery in Parallel
     const galleryItems: { url: string; label: string }[] = [];
     const usedUrls = new Set<string>([heroImage]);
 
-    // Fetch in parallel for speed
     const categoryResults = await Promise.all(
       CATEGORIES.map(async (cat) => {
-        const results = await fetchUnsplashImages(`${destination} ${cat.modifier}`, 3, ACCESS_KEY);
+        const results = await ImageService.fetchBulkPremiumImages(`${destination} ${cat.modifier}`, 3);
         return results.map(url => ({ url, label: cat.label }));
       })
     );
 
-    // Merge with deduplication and order
+    // Merge & Deduplicate
     for (const results of categoryResults) {
       for (const item of results) {
         if (!usedUrls.has(item.url) && galleryItems.length < 12) {
@@ -93,23 +87,35 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Fallback if empty
     if (galleryItems.length === 0) {
       galleryItems.push({ 
-        url: `https://images.unsplash.com/featured/800x600/?${encodeURIComponent(destination)},travel`, 
+        url: ImageService.optimizeUnsplashUrl(`https://images.unsplash.com/featured/800x600/?${encodeURIComponent(destination)},travel`), 
         label: 'Destination' 
       });
     }
 
-    // 4. Save to Cache
-    await DestinationImages.create({
+    const responseData = {
       destination: key,
       heroImage,
       gallery: galleryItems,
-      lastFetched: new Date(),
-    });
+      fromCache: false
+    };
 
-    return NextResponse.json({ destination: key, heroImage, gallery: galleryItems, fromCache: false });
+    // 5. Save to Cache
+    await DestinationImages.findOneAndUpdate(
+      { destination: key },
+      {
+        destination: key,
+        heroImage,
+        gallery: galleryItems,
+        lastFetched: new Date(),
+      },
+      { upsert: true, new: true }
+    );
+
+    await cacheService.set(redisKey, responseData, 15 * 60);
+
+    return NextResponse.json(responseData);
   } catch (error) {
     console.error('destination-images API error:', error);
     return NextResponse.json({

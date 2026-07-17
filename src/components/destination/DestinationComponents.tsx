@@ -336,7 +336,7 @@ export function PremiumCarousel({
     emblaApi.on('reInit', onSelect);
     emblaApi.on('pointerDown', onPointerDown);
     emblaApi.on('pointerUp', () => setTimeout(() => setIsDragging(false), 50));
-    emblaApi.on('drag', onDrag);
+    emblaApi.on('drag' as any, onDrag);
 
     // Keyboard navigation
     const handleKeydown = (e: KeyboardEvent) => {

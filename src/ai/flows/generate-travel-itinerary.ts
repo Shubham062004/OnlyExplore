@@ -116,6 +116,7 @@ const PromptInputSchema = GenerateTravelItineraryInputSchema.extend({
 
 const prompt = ai.definePrompt({
   name: 'generateTravelItineraryPrompt',
+  model: 'googleai/gemini-2.5-flash',
   input: { schema: PromptInputSchema },
 
   // 🔥 IMPORTANT: Return structured object directly

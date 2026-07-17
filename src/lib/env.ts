@@ -2,8 +2,6 @@ export function validateEnv() {
   const requiredVars = [
     "NEXTAUTH_SECRET",
     "MONGODB_URI",
-    "STRIPE_SECRET_KEY",
-    "STRIPE_WEBHOOK_SECRET",
     "OPENWEATHER_API_KEY",
     "MAPBOX_ACCESS_TOKEN",
     "RESEND_API_KEY",

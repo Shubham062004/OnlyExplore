@@ -181,3 +181,51 @@ export function isSafeImageUrl(url: string | null | undefined): boolean {
                     url.includes('images.unsplash.com/photo-1469854523086-cc02fe5d8800'); // the default desert photo
   return !isGeneric;
 }
+
+/**
+ * Retrieves the hero image, popular places images, and nearby images for a destination.
+ */
+export async function getDestinationImages(destination: string): Promise<{
+  heroImage: string;
+  popularPlaces: { name: string; image: string }[];
+  nearby: { name: string; image: string }[];
+}> {
+  try {
+    const images = await fetchBulkPremiumImages(destination, 12);
+    const heroImage = images[0] || getEmergencyFallback(destination);
+    
+    const popularNames = ["Historic Center", "Scenic Viewpoint", "Cultural Landmark", "Local Bazaar"];
+    const nearbyNames = ["Nature Escape", "Scenic Countryside", "Riverside Spot", "Secret Trail"];
+    
+    const popularPlaces = popularNames.map((name, idx) => ({
+      name,
+      image: images[idx + 1] || getEmergencyFallback(`${destination} ${name}`)
+    }));
+    
+    const nearby = nearbyNames.map((name, idx) => ({
+      name,
+      image: images[idx + 5] || getEmergencyFallback(`${destination} ${name}`)
+    }));
+    
+    return {
+      heroImage,
+      popularPlaces,
+      nearby
+    };
+  } catch (error) {
+    console.error("Error in getDestinationImages:", error);
+    const fallback = getEmergencyFallback(destination);
+    return {
+      heroImage: fallback,
+      popularPlaces: [
+        { name: "Scenic Landmark", image: fallback },
+        { name: "Local Culture", image: fallback }
+      ],
+      nearby: [
+        { name: "Nature Trail", image: fallback },
+        { name: "Countryside View", image: fallback }
+      ]
+    };
+  }
+}
+
