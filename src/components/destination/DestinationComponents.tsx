@@ -20,6 +20,7 @@ import {
 import { formatAltitude, getTemperatureRange, formatLocation } from "@/lib/destinations";
 import { ExplorerPoint } from "@/lib/explorer";
 import { safeImageResolver } from "@/lib/imageUtils";
+import { InteractiveSmartMap } from "@/components/ui/InteractiveSmartMap";
 
 // Use a generic transparent pixel or let CSS backgrounds handle missing images
 const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
@@ -100,24 +101,27 @@ export const MapExplorer = memo(function MapExplorer({
   onIndexChange: (idx: number) => void;
 }) {
   const [isMounted, setIsMounted] = useState(false);
-  const activePoint = points[activeIndex] || points[0];
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  const handlePrev = useCallback(() => {
-    onIndexChange((activeIndex - 1 + points.length) % points.length);
-  }, [activeIndex, points.length, onIndexChange]);
-
-  const handleNext = useCallback(() => {
-    onIndexChange((activeIndex + 1) % points.length);
-  }, [activeIndex, points.length, onIndexChange]);
 
   if (!isMounted) {
     return <div className="h-[600px] w-full bg-muted/30 animate-pulse rounded-[3rem] border border-border/50" />;
   }
 
-  if (!activePoint) return null;
+  // Map points to MapMarker format
+  const mappedMarkers = points.map((p) => ({
+    id: p.id,
+    name: p.name,
+    category: (p.type === "stay" ? "Hotels" : p.type === "activity" ? "Attractions" : "Attractions") as any,
+    subCategory: p.category,
+    rating: p.rating,
+    distance: p.duration,
+    openingHours: p.bestTime,
+    image: p.image,
+    description: p.description,
+    coordinates: p.coordinates,
+  }));
 
   return (
     <div className="space-y-10 mt-24 mb-24 scroll-mt-32" id="map-explorer">
@@ -130,166 +134,12 @@ export const MapExplorer = memo(function MapExplorer({
             Navigate <span className="text-primary">{destination}</span> Like a Local
           </h3>
           <p className="text-muted-foreground font-medium text-lg">
-            An interactive explorer syncing the best attractions, stays, and hidden activities in {destination}.
+            An interactive explorer syncing 10 marker categories, hotels, food, rentals, medical, safety & route planning in {destination}.
           </p>
         </div>
-        <div className="flex items-center gap-4">
-           <div className="text-right hidden sm:block">
-             <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Currently Exploring</div>
-             <div className="text-sm font-bold text-primary">{activePoint.name}</div>
-           </div>
-           <div className="w-14 h-14 bg-primary rounded-full flex items-center justify-center text-white shadow-2xl shadow-primary/30">
-             <Navigation className="w-7 h-7" />
-           </div>
-        </div>
       </div>
 
-      <div className="relative h-[800px] w-full rounded-[4rem] overflow-hidden border border-border/50 shadow-[0_30px_100px_rgba(0,0,0,0.1)] bg-card group/map">
-        <div className="absolute inset-0 flex flex-col lg:flex-row">
-          {/* Map Area */}
-          <div className="flex-1 relative bg-zinc-100 dark:bg-zinc-950 overflow-hidden">
-            <iframe
-              key={activePoint.id}
-              className="absolute inset-0 w-full h-full grayscale-[0.2] invert-[0.05] dark:invert-[0.9] opacity-90 contrast-[1.1] transition-all duration-1000"
-              src={`https://maps.google.com/maps?q=${encodeURIComponent(activePoint.name + " " + destination)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
-              title="Interactive Map"
-            />
-            
-            {/* Custom Marker Overlay */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="relative pointer-events-auto">
-                  <div className="w-24 h-24 bg-primary/20 rounded-full flex items-center justify-center animate-ping absolute -inset-0" />
-                  <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center text-white shadow-[0_0_50px_rgba(var(--primary),0.6)] border-4 border-white dark:border-zinc-900 cursor-pointer animate-bounce relative z-10">
-                    {activePoint.type === "stay" ? <Hotel className="w-7 h-7" /> : activePoint.type === "activity" ? <Zap className="w-7 h-7" /> : <MapPin className="w-7 h-7" />}
-                  </div>
-                </div>
-            </div>
-
-            {/* Float Info Card */}
-            <div className="absolute bottom-10 left-10 p-6 bg-background/80 backdrop-blur-2xl border border-border/50 rounded-3xl shadow-2xl max-w-sm hidden md:block animate-in slide-in-from-bottom-5 duration-500">
-               <div className="flex items-center gap-2 mb-2">
-                 <span className="text-[10px] font-black uppercase tracking-widest text-primary">{activePoint.category}</span>
-                 <span className="w-1 h-1 bg-muted-foreground rounded-full" />
-                 <span className="text-[10px] font-bold text-muted-foreground">{activePoint.rating} Rating</span>
-               </div>
-               <div className="text-xl font-black font-headline uppercase tracking-tight mb-2">{activePoint.name}</div>
-               <div className="flex gap-2">
-                 <Button size="sm" variant="outline" className="rounded-xl h-8 text-[10px] font-black uppercase" asChild>
-                   <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(activePoint.name + " " + destination)}`} target="_blank">Get Directions</a>
-                 </Button>
-               </div>
-            </div>
-          </div>
-
-          {/* Side Info & List Panel */}
-          <div className="w-full lg:w-[480px] h-[400px] lg:h-full bg-background/95 backdrop-blur-3xl border-l border-border/50 flex flex-col z-20 shadow-[-30px_0_100px_rgba(0,0,0,0.15)]">
-            <div className="p-8 md:p-10 flex-1 overflow-y-auto space-y-8 scrollbar-hide">
-              <div className="space-y-6">
-                <div className="flex justify-between items-start">
-                  <span className="px-5 py-2 bg-primary/10 text-primary border border-primary/20 rounded-full text-[10px] font-black uppercase tracking-widest">
-                    {activePoint.category}
-                  </span>
-                  <div className="flex items-center gap-1.5 text-orange-500 bg-orange-500/10 px-4 py-1.5 rounded-full">
-                    <Star className="w-4 h-4 fill-current" />
-                    <span className="text-xs font-black tracking-widest">{activePoint.rating}</span>
-                  </div>
-                </div>
-                <h4 className="text-4xl font-black font-headline uppercase leading-[0.85] tracking-tighter">
-                  {activePoint.name}
-                </h4>
-                <p className="text-muted-foreground text-sm font-medium leading-relaxed">
-                  {activePoint.description}
-                </p>
-              </div>
-
-              {/* Stats & Metadata */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-6 bg-muted/30 rounded-3xl border border-border/30 group hover:border-primary/30 transition-all duration-500">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-3">Best Experience</div>
-                  <div className="text-xs font-bold flex items-center gap-2.5">
-                    <Clock className="w-4.5 h-4.5 text-primary" /> {activePoint.bestTime}
-                  </div>
-                </div>
-                <div className="p-6 bg-muted/30 rounded-3xl border border-border/30 group hover:border-primary/30 transition-all duration-500">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-3">Est. Duration</div>
-                  <div className="text-xs font-bold flex items-center gap-2.5">
-                    <Calendar className="w-4.5 h-4.5 text-primary" /> {activePoint.duration}
-                  </div>
-                </div>
-              </div>
-
-              {/* Tags Area */}
-              {activePoint.tags && activePoint.tags.length > 0 && (
-                <div className="space-y-3">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Highlights</div>
-                  <div className="flex flex-wrap gap-2">
-                    {activePoint.tags.map((tag, i) => (
-                      <span key={i} className="px-4 py-2 bg-muted/50 border border-border/20 rounded-2xl text-[9px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors cursor-default">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-4 pt-6">
-                <Button className="flex-1 rounded-[2rem] h-16 font-black uppercase tracking-widest text-xs shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all" asChild>
-                  <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activePoint.name + " " + destination)}`} target="_blank">
-                    Explore on Google Maps <ExternalLink className="w-4 h-4 ml-2" />
-                  </a>
-                </Button>
-              </div>
-            </div>
-
-            {/* Visual Navigation Bar */}
-            <div className="p-10 border-t border-border/50 bg-muted/10">
-              <div className="flex items-center justify-between mb-8 px-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">Discover More Spots</div>
-                <div className="text-[10px] font-black text-primary bg-primary/10 px-3 py-1 rounded-full">{activeIndex + 1} / {points.length}</div>
-              </div>
-              
-              <div className="flex gap-4 overflow-x-auto pb-6 scrollbar-hide px-2">
-                {points.map((p, i) => (
-                  <button
-                    key={p.id}
-                    onClick={() => onIndexChange(i)}
-                    className={`shrink-0 w-24 h-24 rounded-[2rem] overflow-hidden border-2 transition-all duration-500 relative group/thumb ${
-                      i === activeIndex ? "border-primary scale-110 shadow-2xl z-10" : "border-transparent opacity-40 hover:opacity-100"
-                    }`}
-                  >
-                    <img src={p.image} alt={p.name} className="w-full h-full object-cover transition-transform duration-700 group-hover/thumb:scale-110" />
-                    {i === activeIndex && (
-                      <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                        <div className="w-2.5 h-2.5 bg-white rounded-full animate-ping shadow-lg" />
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-              
-              <div className="flex items-center justify-between pt-2">
-                <button 
-                  onClick={handlePrev}
-                  className="w-14 h-14 rounded-full bg-background border border-border/50 flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-xl active:scale-90 group/btn"
-                >
-                  <ChevronLeft className="w-6 h-6 group-hover/btn:-translate-x-1 transition-transform" />
-                </button>
-                <div className="flex gap-2.5">
-                  {points.slice(0, 8).map((_, i) => (
-                    <div key={i} className={`h-1.5 rounded-full transition-all duration-700 ${i === activeIndex % 8 ? "bg-primary w-10 shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-muted-foreground/20 w-1.5"}`} />
-                  ))}
-                </div>
-                <button 
-                  onClick={handleNext}
-                  className="w-14 h-14 rounded-full bg-background border border-border/50 flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-xl active:scale-90 group/btn"
-                >
-                  <ChevronRight className="w-6 h-6 group-hover/btn:translate-x-1 transition-transform" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <InteractiveSmartMap destination={destination} initialMarkers={mappedMarkers} />
     </div>
   );
 });
