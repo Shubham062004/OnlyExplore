@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Copy, Check, Share2, Mail, Shield, UserCheck } from "lucide-react";
+import {
+  X, Copy, Check, Share2, Mail, Shield, UserCheck, Clock, Eye, Edit3, Lock, Globe, MessageSquare
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ShareTripModalProps {
@@ -10,17 +12,50 @@ interface ShareTripModalProps {
   onClose: () => void;
 }
 
+const SOCIAL_PLATFORMS = [
+  {
+    name: "WhatsApp",
+    color: "bg-emerald-600 hover:bg-emerald-700 text-white",
+    getShareUrl: (url: string, title: string) =>
+      `https://api.whatsapp.com/send?text=${encodeURIComponent(`Check out my trip to ${title} on OnlyExplore: ${url}`)}`,
+  },
+  {
+    name: "X (Twitter)",
+    color: "bg-black hover:bg-zinc-800 text-white border border-zinc-700",
+    getShareUrl: (url: string, title: string) =>
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(`Exploring ${title} with OnlyExplore!`)}&url=${encodeURIComponent(url)}`,
+  },
+  {
+    name: "Facebook",
+    color: "bg-blue-600 hover:bg-blue-700 text-white",
+    getShareUrl: (url: string) => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+  },
+  {
+    name: "Telegram",
+    color: "bg-sky-500 hover:bg-sky-600 text-white",
+    getShareUrl: (url: string, title: string) =>
+      `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`My ${title} Trip Plan`)}`,
+  },
+  {
+    name: "Email",
+    color: "bg-zinc-700 hover:bg-zinc-800 text-white",
+    getShareUrl: (url: string, title: string) =>
+      `mailto:?subject=${encodeURIComponent(`OnlyExplore Trip: ${title}`)}&body=${encodeURIComponent(`Here is the travel plan for ${title}: ${url}`)}`,
+  },
+];
+
 export function ShareTripModal({ trip, isOpen, onClose }: ShareTripModalProps) {
   const [copiedLink, setCopiedLink] = useState(false);
+  const [permission, setPermission] = useState<"Public" | "View Only" | "Editable" | "Private">("Public");
   const [emailInput, setEmailInput] = useState("");
-  const [role, setRole] = useState<"Viewer" | "Editor">("Viewer");
   const [sentInvites, setSentInvites] = useState<Array<{ email: string; role: string }>>([
     { email: "collaborator@onlyexplore.app", role: "Editor" },
   ]);
 
   if (!isOpen || !trip) return null;
 
-  const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/trip/${trip.shareKey || trip._id}`;
+  const title = trip.title || trip.destination || "Travel Destination";
+  const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/destination/${encodeURIComponent((trip.destination || title).toLowerCase())}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareUrl);
@@ -31,12 +66,12 @@ export function ShareTripModal({ trip, isOpen, onClose }: ShareTripModalProps) {
   const handleSendInvite = (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailInput.trim()) return;
-    setSentInvites([...sentInvites, { email: emailInput.trim(), role }]);
+    setSentInvites([...sentInvites, { email: emailInput.trim(), role: permission === "Editable" ? "Editor" : "Viewer" }]);
     setEmailInput("");
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
       <div className="relative w-full max-w-lg bg-card border border-border/60 rounded-[2.5rem] p-8 shadow-2xl space-y-6">
         
         {/* Header */}
@@ -46,8 +81,8 @@ export function ShareTripModal({ trip, isOpen, onClose }: ShareTripModalProps) {
               <Share2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-xl font-black font-headline uppercase leading-none">Share Trip</h3>
-              <p className="text-xs text-muted-foreground font-medium mt-0.5">{trip.title || trip.destination}</p>
+              <h3 className="text-xl font-black font-headline uppercase leading-none">Share Travel Plan</h3>
+              <p className="text-xs text-muted-foreground font-medium mt-0.5">{title}</p>
             </div>
           </div>
           <button
@@ -58,10 +93,66 @@ export function ShareTripModal({ trip, isOpen, onClose }: ShareTripModalProps) {
           </button>
         </div>
 
+        {/* Permission Selector Bar */}
+        <div className="space-y-2">
+          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">
+            Access Permissions & Privacy
+          </label>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { id: "Public", label: "Public", icon: Globe },
+              { id: "View Only", label: "View Only", icon: Eye },
+              { id: "Editable", label: "Editable", icon: Edit3 },
+              { id: "Private", label: "Private", icon: Lock },
+            ].map((p) => {
+              const Icon = p.icon;
+              const isSel = permission === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setPermission(p.id as any)}
+                  className={`p-2 rounded-2xl border text-center flex flex-col items-center gap-1 transition-all ${
+                    isSel
+                      ? "bg-primary text-white border-primary shadow-md shadow-primary/20"
+                      : "bg-muted/30 border-border/40 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span className="text-[9px] font-black uppercase">{p.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between text-[9px] text-muted-foreground font-bold px-1 pt-1">
+            <span>Link Expiration: <strong>Never (Active)</strong></span>
+            <span className="text-emerald-500 flex items-center gap-1"><Clock className="w-3 h-3" /> Live Syncing</span>
+          </div>
+        </div>
+
+        {/* Social Platforms Row */}
+        <div className="space-y-2">
+          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">
+            Share directly to Social Platforms
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {SOCIAL_PLATFORMS.map((platform) => (
+              <a
+                key={platform.name}
+                href={platform.getShareUrl(shareUrl, title)}
+                target="_blank"
+                rel="noreferrer"
+                className={`px-3.5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 ${platform.color}`}
+              >
+                {platform.name}
+              </a>
+            ))}
+          </div>
+        </div>
+
         {/* Copy Shareable Link */}
         <div className="space-y-2">
           <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">
-            Shareable Link
+            Shareable URL
           </label>
           <div className="flex items-center gap-2 p-2 bg-muted/40 rounded-2xl border border-border/40">
             <input
@@ -77,10 +168,10 @@ export function ShareTripModal({ trip, isOpen, onClose }: ShareTripModalProps) {
           </div>
         </div>
 
-        {/* Invite by Email & Permissions */}
+        {/* Invite Collaborators */}
         <form onSubmit={handleSendInvite} className="space-y-3">
           <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">
-            Invite Collaborators by Email
+            Invite via Email
           </label>
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
@@ -93,26 +184,18 @@ export function ShareTripModal({ trip, isOpen, onClose }: ShareTripModalProps) {
                 className="w-full bg-muted/40 border border-border/40 rounded-2xl pl-10 pr-3 py-2 text-xs font-medium focus:outline-none focus:border-primary"
               />
             </div>
-            <select
-              value={role}
-              onChange={(e: any) => setRole(e.target.value)}
-              className="bg-muted/40 border border-border/40 rounded-2xl px-3 py-2 text-xs font-bold focus:outline-none"
-            >
-              <option value="Viewer">Viewer</option>
-              <option value="Editor">Editor</option>
-            </select>
             <Button type="submit" size="sm" className="rounded-2xl text-[10px] font-black uppercase px-4 h-9">
               Invite
             </Button>
           </div>
         </form>
 
-        {/* Members List */}
-        <div className="space-y-2 pt-2">
+        {/* Collaborators List */}
+        <div className="space-y-2 pt-1">
           <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
             People with Access
           </div>
-          <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
             <div className="flex items-center justify-between p-3 rounded-2xl bg-muted/20 border border-border/30">
               <div className="flex items-center gap-2">
                 <UserCheck className="w-4 h-4 text-primary" />

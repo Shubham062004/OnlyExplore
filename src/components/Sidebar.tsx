@@ -4,6 +4,7 @@ import { MessageSquare, Plus, LogOut, Menu, X, Sparkles } from "lucide-react";
 import { AuthDialog } from "./AuthDialog";
 import { Button } from "./ui/button";
 import { ProfileModal } from "./ProfileModal";
+import { ThemeToggle } from "./ui/ThemeToggle";
 
 interface Chat {
     _id: string;
@@ -89,7 +90,7 @@ export function Sidebar({ onSelectChat, onNewChat, refreshKey }: { onSelectChat:
 
                         <div className="flex items-center justify-between">
                             <ProfileModal>
-                                <button className="flex items-center gap-2 text-sm font-medium truncate hover:underline cursor-pointer text-left focus:outline-none max-w-[80%]">
+                                <button className="flex items-center gap-2 text-sm font-medium truncate hover:underline cursor-pointer text-left focus:outline-none max-w-[65%]">
                                     {session.user?.image ? (
                                         <img src={session.user.image} alt="Avatar" className="w-8 h-8 rounded-full border border-border shrink-0 object-cover" />
                                     ) : (
@@ -100,9 +101,12 @@ export function Sidebar({ onSelectChat, onNewChat, refreshKey }: { onSelectChat:
                                     <span className="truncate">{session.user?.name || session.user?.email}</span>
                                 </button>
                             </ProfileModal>
-                            <Button variant="ghost" size="icon" onClick={() => signOut()} className="shrink-0 hover:bg-red-500/10 hover:text-red-500 transition-colors">
-                                <LogOut className="w-4 h-4" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                                <ThemeToggle />
+                                <Button variant="ghost" size="icon" onClick={() => signOut()} className="shrink-0 hover:bg-red-500/10 hover:text-red-500 transition-colors">
+                                    <LogOut className="w-4 h-4" />
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 )}

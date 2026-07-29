@@ -29,7 +29,6 @@ const DestinationCacheSchema = new Schema<IDestinationCache>({
 
 // Index to support TTL (expires in 30 days)
 DestinationCacheSchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
-DestinationCacheSchema.index({ destination: 1 });
 
 export default mongoose.models.DestinationCache ||
   mongoose.model<IDestinationCache>('DestinationCache', DestinationCacheSchema);

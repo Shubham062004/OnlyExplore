@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Loader2, ImageOff, MapPin } from "lucide-react";
+import { Loader2, ImageOff, MapPin, Maximize2, Camera } from "lucide-react";
 import { PlaceModal } from "@/components/PlaceModal";
 import {
   QuickFacts,
@@ -29,6 +29,10 @@ import {
   SectionLoader,
 } from "@/components/destination/skeletons";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { StickyNav } from "@/components/destination/StickyNav";
+import { GalleryModal, GalleryImage } from "@/components/destination/GalleryModal";
+import { OptimizedImage } from "@/components/ui/OptimizedImage";
+import { WeatherCard } from "@/components/ui/WeatherCard";
 import type { DestinationGuideData } from "@/services/destination.service";
 
 import { normalizeExplorerPoints, getSafeExplorerPoints } from "@/lib/explorer";
@@ -38,8 +42,12 @@ import { safeImageResolver } from "@/lib/imageUtils";
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 interface GalleryItem {
+  id?: string;
   url: string;
-  label: string;
+  label?: string;
+  category?: string;
+  caption?: string;
+  attribution?: string;
 }
 
 interface GalleryImages {
@@ -50,8 +58,20 @@ interface GalleryImages {
 const FALLBACK_HERO =
   "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1600&auto=format&fit=crop";
 
+const GALLERY_CATEGORIES = [
+  "All",
+  "Nature",
+  "Mountains",
+  "Rivers",
+  "Culture",
+  "Food",
+  "Adventure",
+  "Hotels",
+  "Attractions",
+];
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Hero Section (renders immediately with destination name from URL slug)
+// Hero Section
 // ─────────────────────────────────────────────────────────────────────────────
 function DestinationHero({
   title,
@@ -66,7 +86,7 @@ function DestinationHero({
   useEffect(() => setSrc(safeImageResolver(heroImage, title, FALLBACK_HERO)), [heroImage, title]);
 
   return (
-    <div className="relative w-full h-[520px] md:h-[640px] flex items-end overflow-hidden rounded-b-[3rem] md:rounded-b-[4rem]">
+    <div id="overview" className="relative w-full h-[520px] md:h-[640px] flex items-end overflow-hidden rounded-b-[3rem] md:rounded-b-[4rem]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
@@ -97,7 +117,7 @@ function DestinationHero({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Photo Gallery
+// Photo Gallery with Masonry Layout & Fullscreen Modal
 // ─────────────────────────────────────────────────────────────────────────────
 function GallerySection({
   gallery,
@@ -106,60 +126,102 @@ function GallerySection({
   gallery: GalleryItem[];
   destination: string;
 }) {
-  const [failedIdx, setFailedIdx] = useState<Set<number>>(new Set());
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+
   if (!gallery || gallery.length === 0) return null;
 
+  const filteredGallery = useMemo(() => {
+    if (activeCategory === "All") return gallery;
+    return gallery.filter(
+      (item) =>
+        item.category?.toLowerCase() === activeCategory.toLowerCase() ||
+        item.label?.toLowerCase().includes(activeCategory.toLowerCase())
+    );
+  }, [gallery, activeCategory]);
+
   return (
-    <div className="mt-20 mb-16">
-      <div className="flex flex-col mb-8">
-        <h3 className="text-3xl md:text-4xl font-black font-headline uppercase tracking-tighter">Experience Gallery</h3>
-        <p className="text-muted-foreground font-medium">A curated visual journey through the best of {destination}.</p>
-      </div>
+    <div id="gallery" className="mt-20 mb-16 scroll-mt-24">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full text-[10px] font-black uppercase tracking-widest border border-primary/20">
+            <Camera className="w-3.5 h-3.5" /> Curated Photo Gallery
+          </div>
+          <h3 className="text-3xl md:text-5xl font-black font-headline uppercase tracking-tighter">
+            Visual Experience <span className="text-primary">{destination}</span>
+          </h3>
+          <p className="text-muted-foreground font-medium text-sm">
+            Explore high-resolution photography categorized by nature, adventure, food & heritage.
+          </p>
+        </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-        {gallery.map((item, idx) => {
-          const failed = failedIdx.has(idx);
-          return (
-            <div
-              key={idx}
-              className={`relative overflow-hidden rounded-[2rem] bg-muted group cursor-pointer border border-border/50 shadow-xl shadow-black/5 ${idx === 0 ? "col-span-2 row-span-2 h-[320px] md:h-[480px]" : "h-[150px] md:h-[230px]"
-                }`}
+        {/* Category Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-hide max-w-full">
+          {GALLERY_CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap border ${
+                activeCategory === cat
+                  ? "bg-primary text-white border-primary shadow-md shadow-primary/20 scale-105"
+                  : "bg-card text-muted-foreground border-border/60 hover:bg-muted hover:text-foreground"
+              }`}
             >
-              {failed ? (
-                <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground">
-                  <ImageOff className="w-8 h-8 opacity-20" />
-                </div>
-              ) : (
-                <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.url}
-                    alt={`${destination} ${item.label}`}
-                    loading="lazy"
-                    onError={() => setFailedIdx((p) => new Set([...p, idx]))}
-                    className="w-full h-full object-cover transition-all duration-700 ease-out group-hover:scale-110 group-hover:rotate-1"
-                  />
-                  {/* Overlay Gradient */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-
-                  {/* Label Tag */}
-                  <div className="absolute bottom-4 left-4 md:bottom-6 md:left-6 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-75">
-                    <span className="bg-white/20 backdrop-blur-md border border-white/30 text-white text-[10px] md:text-xs font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full">
-                      {item.label}
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
-          );
-        })}
+              {cat}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Masonry Layout Grid */}
+      <div className="columns-2 sm:columns-3 lg:columns-4 gap-4 space-y-4">
+        {filteredGallery.map((item, idx) => (
+          <div
+            key={item.id || idx}
+            onClick={() => setSelectedImageIndex(idx)}
+            className="relative overflow-hidden rounded-[2rem] bg-muted group cursor-pointer border border-border/50 shadow-xl shadow-black/5 break-inside-avoid"
+          >
+            <OptimizedImage
+              src={item.url}
+              alt={item.caption || `${destination} ${item.label}`}
+              className="w-full h-auto object-cover transition-all duration-700 ease-out group-hover:scale-105"
+            />
+            {/* Overlay Gradient */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-between p-5" />
+
+            {/* Top Right Zoom Icon */}
+            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <span className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md text-white flex items-center justify-center border border-white/20">
+                <Maximize2 className="w-4 h-4" />
+              </span>
+            </div>
+
+            {/* Label Tag */}
+            <div className="absolute bottom-4 left-4 right-4 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-75">
+              <span className="bg-white/20 backdrop-blur-md border border-white/30 text-white text-[10px] font-black uppercase tracking-[0.2em] px-3.5 py-1.5 rounded-full inline-block truncate max-w-full">
+                {item.label || item.category || "View Photo"}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Fullscreen Preview Lightbox Modal */}
+      {selectedImageIndex !== null && (
+        <GalleryModal
+          images={filteredGallery}
+          initialIndex={selectedImageIndex}
+          destination={destination}
+          isOpen={selectedImageIndex !== null}
+          onClose={() => setSelectedImageIndex(null)}
+        />
+      )}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Main DestinationContent — Progressive Rendering Architecture
+// Main DestinationContent
 // ─────────────────────────────────────────────────────────────────────────────
 export default function DestinationContent({
   destination,
@@ -175,13 +237,11 @@ export default function DestinationContent({
   const [selectedPlace, setSelectedPlace] = useState<any | null>(null);
   const [activeExplorerIndex, setActiveExplorerIndex] = useState(0);
 
-  // Centralized points for synchronization
   const explorerPoints = useMemo(() => {
     const rawPoints = normalizeExplorerPoints(guide, destination);
     return getSafeExplorerPoints(rawPoints, destination);
   }, [guide, destination]);
 
-  // ── Load data ──────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
@@ -190,7 +250,6 @@ export default function DestinationContent({
       setGalleryLoading(true);
 
       try {
-        // Fetch guide from secure API proxy and images in parallel
         const [guideRes, imgRes] = await Promise.all([
           fetch(`/api/destination-guide?destination=${encodeURIComponent(destination)}`),
           fetch(`/api/destination-images?destination=${encodeURIComponent(destination)}`),
@@ -199,14 +258,10 @@ export default function DestinationContent({
         if (guideRes.ok && !cancelled) {
           const guideJson = await guideRes.json();
           const guideData = guideJson.success ? guideJson.data : (guideJson.data || guideJson);
-          if (guideData) {
-            setGuide(guideData);
-          }
+          if (guideData) setGuide(guideData);
         }
-        
-        if (!cancelled) {
-          setLoading(false);
-        }
+
+        if (!cancelled) setLoading(false);
 
         if (imgRes.ok && !cancelled) {
           const imgJson = await imgRes.json();
@@ -228,32 +283,22 @@ export default function DestinationContent({
   const handleModalClose = useCallback(() => setSelectedPlace(null), []);
 
   const handleLocationClick = useCallback((name: string) => {
-    // Look for place in explorerPoints, activities, or hotels
-    const place = 
+    const place =
       explorerPoints.find(p => p.name.toLowerCase() === name.toLowerCase()) ||
       guide?.activities?.find(a => a.name.toLowerCase() === name.toLowerCase()) ||
       guide?.hotels?.find(h => h.name.toLowerCase() === name.toLowerCase());
-    
-    if (place) {
-      handlePlaceClick(place);
-    }
+
+    if (place) handlePlaceClick(place);
   }, [explorerPoints, guide, handlePlaceClick]);
 
-  // ── Progressive Rendering ─────────────────────────────────────────────────
-  // Hero renders immediately with destination name from URL slug.
-  // Each section renders independently — showing its skeleton until data arrives.
-
   const isPremium = true;
-
-  // Hero image: use gallery hero, or first place image, or fallback
   const heroImage = gallery?.heroImage || guide?.popularPlaces?.[0]?.image || FALLBACK_HERO;
   const heroTitle = guide?.hero?.title || destination;
   const heroDescription = guide?.hero?.description || `Adventure unscripted. Uncover the magic of ${destination}.`;
 
   return (
     <div className="w-full pb-12">
-
-      {/* 1. Hero — Renders immediately (shows shimmer if no guide data yet) */}
+      {/* 1. Hero */}
       <SectionLoader loading={loading && !guide} skeleton={<HeroSkeleton />}>
         <DestinationHero
           title={heroTitle}
@@ -262,23 +307,80 @@ export default function DestinationContent({
         />
       </SectionLoader>
 
+      {/* 2. Sticky Navigation Bar */}
+      <StickyNav />
+
       <div className="w-full max-w-7xl mx-auto px-4">
 
-        {/* 2. Quick Facts */}
+        {/* 3. Quick Facts */}
         <ErrorBoundary sectionName="Quick Facts">
           <SectionLoader loading={loading} skeleton={<QuickFactsSkeleton />}>
             {guide?.quickFacts && <QuickFacts facts={guide.quickFacts} destination={destination} />}
           </SectionLoader>
         </ErrorBoundary>
 
-        {/* 3. Photo Gallery */}
+        {/* 4. Photo Gallery with Masonry & Filters */}
         <ErrorBoundary sectionName="Gallery">
           <SectionLoader loading={galleryLoading} skeleton={<GallerySkeleton />}>
             <GallerySection gallery={gallery?.gallery || []} destination={destination} />
           </SectionLoader>
         </ErrorBoundary>
 
-        {/* 4. Map Explorer (Interactive) */}
+        {/* 5. Popular Places */}
+        <ErrorBoundary sectionName="Popular Places">
+          <SectionLoader loading={loading} skeleton={<PlacesCarouselSkeleton />}>
+            <div id="popular-places" className="scroll-mt-24">
+              {explorerPoints.length > 0 && (
+                <PopularPlaces
+                  places={explorerPoints}
+                  destination={destination}
+                  activeIndex={activeExplorerIndex}
+                  onIndexChange={setActiveExplorerIndex}
+                  onPlaceClick={handlePlaceClick}
+                />
+              )}
+            </div>
+          </SectionLoader>
+        </ErrorBoundary>
+
+        {/* 6. Trip Planner CTA */}
+        <ErrorBoundary sectionName="Trip Planner">
+          <SectionLoader loading={loading} skeleton={<TripPlannerSkeleton />}>
+            <TripPlannerCTA destination={destination} />
+          </SectionLoader>
+        </ErrorBoundary>
+
+        {/* 7. Activities / Experiences */}
+        <ErrorBoundary sectionName="Activities">
+          <SectionLoader loading={loading} skeleton={<ActivitiesSkeleton />}>
+            <div id="activities" className="scroll-mt-24">
+              {guide?.activities && guide.activities.length > 0 && (
+                <AdventureActivities
+                  activities={guide.activities}
+                  destination={destination}
+                  onViewDetails={handlePlaceClick}
+                />
+              )}
+            </div>
+          </SectionLoader>
+        </ErrorBoundary>
+
+        {/* 8. Stays / Hotels */}
+        <ErrorBoundary sectionName="Hotels">
+          <SectionLoader loading={loading} skeleton={<HotelsSkeleton />}>
+            <div id="stays" className="scroll-mt-24">
+              {guide?.hotels && guide.hotels.length > 0 && (
+                <StayRecommendations
+                  hotels={guide.hotels}
+                  destination={destination}
+                  onViewDetails={handlePlaceClick}
+                />
+              )}
+            </div>
+          </SectionLoader>
+        </ErrorBoundary>
+
+        {/* 9. Interactive Smart Map */}
         <ErrorBoundary sectionName="Map Explorer">
           <SectionLoader loading={loading} skeleton={<MapExplorerSkeleton />}>
             {isPremium && explorerPoints.length > 0 && (
@@ -292,105 +394,72 @@ export default function DestinationContent({
           </SectionLoader>
         </ErrorBoundary>
 
-        {/* 5. Popular Places */}
-        <ErrorBoundary sectionName="Popular Places">
-          <SectionLoader loading={loading} skeleton={<PlacesCarouselSkeleton />}>
-            {explorerPoints.length > 0 && (
-              <PopularPlaces
-                places={explorerPoints}
-                destination={destination}
-                activeIndex={activeExplorerIndex}
-                onIndexChange={setActiveExplorerIndex}
-                onPlaceClick={handlePlaceClick}
-              />
-            )}
-          </SectionLoader>
-        </ErrorBoundary>
-
-        {/* 6. Trip Planner CTA */}
-        <ErrorBoundary sectionName="Trip Planner">
-          <SectionLoader loading={loading} skeleton={<TripPlannerSkeleton />}>
-            <TripPlannerCTA destination={destination} />
-          </SectionLoader>
-        </ErrorBoundary>
-
-        {/* 7. Activities */}
-        <ErrorBoundary sectionName="Activities">
-          <SectionLoader loading={loading} skeleton={<ActivitiesSkeleton />}>
-            {guide?.activities && guide.activities.length > 0 && (
-              <AdventureActivities
-                activities={guide.activities}
-                destination={destination}
+        {/* 10. Rentals */}
+        <ErrorBoundary sectionName="Rentals">
+          <div id="rentals" className="scroll-mt-24">
+            {!loading && guide?.rentals && guide.rentals.length > 0 && (
+              <RentalsSection
+                rentals={guide.rentals}
                 onViewDetails={handlePlaceClick}
               />
             )}
-          </SectionLoader>
+          </div>
         </ErrorBoundary>
 
-        {/* 8. Hotels */}
-        <ErrorBoundary sectionName="Hotels">
-          <SectionLoader loading={loading} skeleton={<HotelsSkeleton />}>
-            {guide?.hotels && guide.hotels.length > 0 && (
-              <StayRecommendations
-                hotels={guide.hotels}
-                destination={destination}
-                onViewDetails={handlePlaceClick}
-              />
-            )}
-          </SectionLoader>
+        {/* 11. Dynamic Weather Widget */}
+        <ErrorBoundary sectionName="Weather">
+          <div id="weather" className="scroll-mt-24">
+            <WeatherCard destination={destination} />
+          </div>
         </ErrorBoundary>
 
-        {/* 9. Itinerary */}
+        {/* 12. Itinerary */}
         <ErrorBoundary sectionName="Itinerary">
           <SectionLoader loading={loading} skeleton={<ItinerarySkeleton />}>
-            {guide?.itinerary && guide.itinerary.length > 0 && (
-              <ItinerarySection
-                itinerary={guide.itinerary}
-                destination={destination}
-                onLocationClick={handleLocationClick}
-              />
-            )}
+            <div id="itinerary" className="scroll-mt-24">
+              {guide?.itinerary && guide.itinerary.length > 0 && (
+                <ItinerarySection
+                  itinerary={guide.itinerary}
+                  destination={destination}
+                  onLocationClick={handleLocationClick}
+                />
+              )}
+            </div>
           </SectionLoader>
-        </ErrorBoundary>
-
-        {/* Rentals */}
-        <ErrorBoundary sectionName="Rentals">
-          {!loading && guide?.rentals && guide.rentals.length > 0 && (
-            <RentalsSection 
-              rentals={guide.rentals} 
-              onViewDetails={handlePlaceClick}
-            />
-          )}
         </ErrorBoundary>
 
         {/* Nearby & Similar */}
         <ErrorBoundary sectionName="Nearby Destinations">
           {!loading && (guide?.nearbyDestinations || guide?.similarDestinations) && (
-            <BeyondTheHorizon 
-              nearby={guide?.nearbyDestinations || []} 
-              similar={guide?.similarDestinations || []} 
-              destination={destination} 
+            <BeyondTheHorizon
+              nearby={guide?.nearbyDestinations || []}
+              similar={guide?.similarDestinations || []}
+              destination={destination}
             />
           )}
         </ErrorBoundary>
 
-        {/* 10. Preparation System */}
+        {/* 13. Travel Preparation & Emergency */}
         <ErrorBoundary sectionName="Travel Preparation">
           <SectionLoader loading={loading} skeleton={<PreparationSkeleton />}>
-            {(guide?.travelTips || guide?.packingGuide) && (
-              <TravelPreparation 
-                tips={guide?.travelTips || []} 
-                packing={guide?.packingGuide || []} 
-                alerts={guide?.safetyAlerts || []}
-                destination={destination}
-              />
-            )}
+            <div id="preparation" className="scroll-mt-24">
+              <div id="emergency">
+                {(guide?.travelTips || guide?.packingGuide) && (
+                  <TravelPreparation
+                    tips={guide?.travelTips || []}
+                    packing={guide?.packingGuide || []}
+                    alerts={guide?.safetyAlerts || []}
+                    destination={destination}
+                  />
+                )}
+              </div>
+            </div>
           </SectionLoader>
         </ErrorBoundary>
 
       </div>
 
-      {/* Place Modal */}
+      {/* Place Details Modal */}
       {selectedPlace && (
         <PlaceModal
           place={selectedPlace}
