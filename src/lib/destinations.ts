@@ -67,12 +67,12 @@ export const destinationMetadata: Record<string, DestinationMeta> = {
  * Example: 2050 -> "2,050m (6,726 ft)"
  */
 export function formatAltitude(meters: number | string | undefined): string {
-  if (meters === undefined || meters === "" || meters === "Varies" || meters === "Altitude unavailable") {
-    return "Altitude unavailable";
+  if (meters === undefined || meters === "" || meters === "Varies" || meters === "Altitude unavailable" || meters === "Currently unavailable") {
+    return "Currently unavailable";
   }
 
   const m = typeof meters === "string" ? parseFloat(meters.replace(/,/g, "")) : meters;
-  if (isNaN(m)) return "Altitude unavailable";
+  if (isNaN(m) || m === 0) return "Currently unavailable";
 
   const feet = Math.round(m * 3.28084);
   const formattedM = m.toLocaleString();
@@ -98,7 +98,7 @@ export function getTemperatureRange(destination: string, rawTemp?: string) {
   }
 
   // If no meta, try to parse rawTemp (e.g. "12°C to 28°C")
-  if (rawTemp && rawTemp !== "N/A") {
+  if (rawTemp && rawTemp !== "N/A" && rawTemp !== "Currently unavailable") {
     return {
       min: null,
       max: null,
@@ -109,12 +109,13 @@ export function getTemperatureRange(destination: string, rawTemp?: string) {
   return {
     min: null,
     max: null,
-    formatted: "N/A",
+    formatted: "Currently unavailable",
   };
 }
 
 /**
  * Format location as "State, Country"
+ * Never returns generic placeholders like "State, India"
  */
 export function formatLocation(destination: string, rawLocation?: string): string {
   const key = destination.toLowerCase().trim();
@@ -124,10 +125,13 @@ export function formatLocation(destination: string, rawLocation?: string): strin
     return `${meta.state}, ${meta.country}`;
   }
 
-  if (rawLocation && rawLocation !== "N/A") {
-    // Basic sanitization to ensure "State, Country" format
-    return rawLocation;
+  if (rawLocation && rawLocation !== "N/A" && rawLocation !== "Location unavailable") {
+    // Reject generic placeholder patterns like "State, India" or just the destination name repeated
+    const isGeneric = /^(State|Province|Region),\s*(India|Country)$/i.test(rawLocation.trim());
+    if (!isGeneric) {
+      return rawLocation;
+    }
   }
 
-  return "Location unavailable";
+  return "Currently unavailable";
 }

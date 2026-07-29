@@ -12,10 +12,23 @@ import {
   RentalsSection,
   BeyondTheHorizon,
   TravelPreparation,
-  DestinationSkeleton,
   PopularPlaces,
   ItinerarySection,
 } from "@/components/destination/DestinationComponents";
+import {
+  HeroSkeleton,
+  QuickFactsSkeleton,
+  GallerySkeleton,
+  MapExplorerSkeleton,
+  PlacesCarouselSkeleton,
+  ActivitiesSkeleton,
+  HotelsSkeleton,
+  ItinerarySkeleton,
+  PreparationSkeleton,
+  TripPlannerSkeleton,
+  SectionLoader,
+} from "@/components/destination/skeletons";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import type { DestinationGuideData } from "@/services/destination.service";
 
 import { normalizeExplorerPoints, getSafeExplorerPoints } from "@/lib/explorer";
@@ -38,7 +51,7 @@ const FALLBACK_HERO =
   "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1600&auto=format&fit=crop";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Hero Section
+// Hero Section (renders immediately with destination name from URL slug)
 // ─────────────────────────────────────────────────────────────────────────────
 function DestinationHero({
   title,
@@ -146,7 +159,7 @@ function GallerySection({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Main DestinationContent
+// Main DestinationContent — Progressive Rendering Architecture
 // ─────────────────────────────────────────────────────────────────────────────
 export default function DestinationContent({
   destination,
@@ -226,133 +239,154 @@ export default function DestinationContent({
     }
   }, [explorerPoints, guide, handlePlaceClick]);
 
-  if (loading) return <DestinationSkeleton />;
-
-  if (!guide) {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center">
-        <h2 className="text-2xl font-bold font-headline mb-4">Content Not Available</h2>
-        <p className="text-muted-foreground bg-muted p-4 rounded-xl shadow-inner">
-          Unable to generate a travel guide for <b>{destination}</b> at this time.
-        </p>
-      </div>
-    );
-  }
+  // ── Progressive Rendering ─────────────────────────────────────────────────
+  // Hero renders immediately with destination name from URL slug.
+  // Each section renders independently — showing its skeleton until data arrives.
 
   const isPremium = true;
 
-  // ── Hero: first place image or gallery hero ────────────────────────────────
-  const heroImage =
-    gallery?.heroImage ||
-    guide.popularPlaces?.[0]?.image ||
-    FALLBACK_HERO;
+  // Hero image: use gallery hero, or first place image, or fallback
+  const heroImage = gallery?.heroImage || guide?.popularPlaces?.[0]?.image || FALLBACK_HERO;
+  const heroTitle = guide?.hero?.title || destination;
+  const heroDescription = guide?.hero?.description || `Adventure unscripted. Uncover the magic of ${destination}.`;
 
   return (
     <div className="w-full pb-12">
 
-      {/* 1. Hero ─────────────────────────────────────────────────────────── */}
-      <DestinationHero
-        title={guide.hero?.title || destination}
-        description={
-          guide.hero?.description ||
-          `Adventure unscripted. Uncover the magic of ${destination}.`
-        }
-        heroImage={heroImage}
-      />
+      {/* 1. Hero — Renders immediately (shows shimmer if no guide data yet) */}
+      <SectionLoader loading={loading && !guide} skeleton={<HeroSkeleton />}>
+        <DestinationHero
+          title={heroTitle}
+          description={heroDescription}
+          heroImage={heroImage}
+        />
+      </SectionLoader>
 
       <div className="w-full max-w-7xl mx-auto px-4">
 
-        {/* 2. Quick Facts ──────────────────────────────────────────────────── */}
-        {guide.quickFacts && <QuickFacts facts={guide.quickFacts} destination={destination} />}
+        {/* 2. Quick Facts */}
+        <ErrorBoundary sectionName="Quick Facts">
+          <SectionLoader loading={loading} skeleton={<QuickFactsSkeleton />}>
+            {guide?.quickFacts && <QuickFacts facts={guide.quickFacts} destination={destination} />}
+          </SectionLoader>
+        </ErrorBoundary>
 
-        {/* 3. Photo Gallery ────────────────────────────────────────────────── */}
-        {galleryLoading ? (
-          <div className="mt-12 flex items-center justify-center gap-3 text-muted-foreground py-12 rounded-2xl bg-muted/30 border">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            <span className="text-sm font-medium">Loading gallery…</span>
-          </div>
-        ) : (
-          <GallerySection gallery={gallery?.gallery || []} destination={destination} />
-        )}
+        {/* 3. Photo Gallery */}
+        <ErrorBoundary sectionName="Gallery">
+          <SectionLoader loading={galleryLoading} skeleton={<GallerySkeleton />}>
+            <GallerySection gallery={gallery?.gallery || []} destination={destination} />
+          </SectionLoader>
+        </ErrorBoundary>
 
-        {/* 4. Map Explorer (Interactive) ─────────────────────────────────────── */}
-        {isPremium && (
-          <MapExplorer
-            points={explorerPoints}
-            destination={destination}
-            activeIndex={activeExplorerIndex}
-            onIndexChange={setActiveExplorerIndex}
-          />
-        )}
+        {/* 4. Map Explorer (Interactive) */}
+        <ErrorBoundary sectionName="Map Explorer">
+          <SectionLoader loading={loading} skeleton={<MapExplorerSkeleton />}>
+            {isPremium && explorerPoints.length > 0 && (
+              <MapExplorer
+                points={explorerPoints}
+                destination={destination}
+                activeIndex={activeExplorerIndex}
+                onIndexChange={setActiveExplorerIndex}
+              />
+            )}
+          </SectionLoader>
+        </ErrorBoundary>
 
-        {/* 5. Popular Places ───────────────────────────────────────────────── */}
-        {explorerPoints.length > 0 && (
-          <PopularPlaces
-            places={explorerPoints}
-            destination={destination}
-            activeIndex={activeExplorerIndex}
-            onIndexChange={setActiveExplorerIndex}
-            onPlaceClick={handlePlaceClick}
-          />
-        )}
+        {/* 5. Popular Places */}
+        <ErrorBoundary sectionName="Popular Places">
+          <SectionLoader loading={loading} skeleton={<PlacesCarouselSkeleton />}>
+            {explorerPoints.length > 0 && (
+              <PopularPlaces
+                places={explorerPoints}
+                destination={destination}
+                activeIndex={activeExplorerIndex}
+                onIndexChange={setActiveExplorerIndex}
+                onPlaceClick={handlePlaceClick}
+              />
+            )}
+          </SectionLoader>
+        </ErrorBoundary>
 
-        {/* 6. Trip Planner CTA ─────────────────────────────────────────────── */}
-        <TripPlannerCTA destination={destination} />
+        {/* 6. Trip Planner CTA */}
+        <ErrorBoundary sectionName="Trip Planner">
+          <SectionLoader loading={loading} skeleton={<TripPlannerSkeleton />}>
+            <TripPlannerCTA destination={destination} />
+          </SectionLoader>
+        </ErrorBoundary>
 
-        {/* 7–10. Premium sections ──────────────────────────────────────────── */}
         {/* 7. Activities */}
-        {guide.activities && guide.activities.length > 0 && (
-          <AdventureActivities
-            activities={guide.activities}
-            destination={destination}
-            onViewDetails={handlePlaceClick}
-          />
-        )}
+        <ErrorBoundary sectionName="Activities">
+          <SectionLoader loading={loading} skeleton={<ActivitiesSkeleton />}>
+            {guide?.activities && guide.activities.length > 0 && (
+              <AdventureActivities
+                activities={guide.activities}
+                destination={destination}
+                onViewDetails={handlePlaceClick}
+              />
+            )}
+          </SectionLoader>
+        </ErrorBoundary>
 
         {/* 8. Hotels */}
-        {guide.hotels && guide.hotels.length > 0 && (
-          <StayRecommendations
-            hotels={guide.hotels}
-            destination={destination}
-            onViewDetails={handlePlaceClick}
-          />
-        )}
+        <ErrorBoundary sectionName="Hotels">
+          <SectionLoader loading={loading} skeleton={<HotelsSkeleton />}>
+            {guide?.hotels && guide.hotels.length > 0 && (
+              <StayRecommendations
+                hotels={guide.hotels}
+                destination={destination}
+                onViewDetails={handlePlaceClick}
+              />
+            )}
+          </SectionLoader>
+        </ErrorBoundary>
 
         {/* 9. Itinerary */}
-        {guide.itinerary && guide.itinerary.length > 0 && (
-          <ItinerarySection
-            itinerary={guide.itinerary}
-            destination={destination}
-            onLocationClick={handleLocationClick}
-          />
-        )}
+        <ErrorBoundary sectionName="Itinerary">
+          <SectionLoader loading={loading} skeleton={<ItinerarySkeleton />}>
+            {guide?.itinerary && guide.itinerary.length > 0 && (
+              <ItinerarySection
+                itinerary={guide.itinerary}
+                destination={destination}
+                onLocationClick={handleLocationClick}
+              />
+            )}
+          </SectionLoader>
+        </ErrorBoundary>
 
         {/* Rentals */}
-        {guide.rentals && guide.rentals.length > 0 && (
-          <RentalsSection 
-            rentals={guide.rentals} 
-            onViewDetails={handlePlaceClick}
-          />
-        )}
+        <ErrorBoundary sectionName="Rentals">
+          {!loading && guide?.rentals && guide.rentals.length > 0 && (
+            <RentalsSection 
+              rentals={guide.rentals} 
+              onViewDetails={handlePlaceClick}
+            />
+          )}
+        </ErrorBoundary>
 
         {/* Nearby & Similar */}
-        {(guide.nearbyDestinations || guide.similarDestinations) && (
-          <BeyondTheHorizon 
-            nearby={guide.nearbyDestinations || []} 
-            similar={guide.similarDestinations || []} 
-            destination={destination} 
-          />
-        )}
+        <ErrorBoundary sectionName="Nearby Destinations">
+          {!loading && (guide?.nearbyDestinations || guide?.similarDestinations) && (
+            <BeyondTheHorizon 
+              nearby={guide?.nearbyDestinations || []} 
+              similar={guide?.similarDestinations || []} 
+              destination={destination} 
+            />
+          )}
+        </ErrorBoundary>
 
         {/* 10. Preparation System */}
-        {(guide.travelTips || guide.packingGuide) && (
-          <TravelPreparation 
-            tips={guide.travelTips || []} 
-            packing={guide.packingGuide || []} 
-            alerts={guide.safetyAlerts || []}
-            destination={destination}
-          />
-        )}
+        <ErrorBoundary sectionName="Travel Preparation">
+          <SectionLoader loading={loading} skeleton={<PreparationSkeleton />}>
+            {(guide?.travelTips || guide?.packingGuide) && (
+              <TravelPreparation 
+                tips={guide?.travelTips || []} 
+                packing={guide?.packingGuide || []} 
+                alerts={guide?.safetyAlerts || []}
+                destination={destination}
+              />
+            )}
+          </SectionLoader>
+        </ErrorBoundary>
 
       </div>
 

@@ -119,48 +119,31 @@ export function normalizeExplorerPoints(guide: DestinationGuideData | null | any
 }
 
 /**
- * Supplemental curated fallbacks for major destinations.
- */
-const DESTINATION_FALLBACKS: Record<string, Partial<ExplorerPoint>[]> = {
-  'manali': [
-    { name: 'Vashisht Temple', description: 'Famous for its hot springs and wood carvings.', category: 'Spiritual', coordinates: { lat: 32.2612, lng: 77.1874 }, tags: ['Temple', 'Hot Springs'] },
-    { name: 'Manu Temple', description: 'A peaceful pagoda-style temple in Old Manali.', category: 'Culture', coordinates: { lat: 32.2570, lng: 77.1738 }, tags: ['Heritage', 'Quiet'] },
-    { name: 'Beas River Bank', description: 'Stunning crystal clear water and mountain views.', category: 'Nature', coordinates: { lat: 32.2396, lng: 77.1887 }, tags: ['River', 'Views'] },
-    { name: 'Museum of Himachal Culture', description: 'Exhibits on local life and heritage.', category: 'Culture', coordinates: { lat: 32.2475, lng: 77.1775 }, tags: ['Education', 'History'] },
-  ],
-  'default': [
-    { name: 'City Center Market', description: 'The bustling heart of the local scene.', category: 'Food & Shopping', tags: ['Local', 'Vibrant'] },
-    { name: 'Grand Cathedral', description: 'An iconic architectural marvel.', category: 'Heritage', tags: ['Architecture', 'History'] },
-    { name: 'Scenic Lookout', description: 'Breathtaking panoramic views of the city.', category: 'Scenic Point', tags: ['Views', 'Photos'] },
-    { name: 'Riverside Walk', description: 'A peaceful stroll along the water.', category: 'Nature', tags: ['Outdoor', 'Relaxing'] },
-  ]
-};
-
-/**
- * The "safePlaceGeneration" system.
- * Hierarchy: AI Data -> Destination Specific Fallbacks -> Generic Fallbacks.
+ * Returns validated explorer points without padding fake data.
+ * 
+ * Philosophy: It's better to show 5 real places from AI/Google Places
+ * than to pad with 10 that include generic fakes like "City Center Market".
+ * If we have zero points, return an empty array and let the UI handle it gracefully.
  */
 export function getSafeExplorerPoints(points: ExplorerPoint[], destination: string): ExplorerPoint[] {
-  const targetCount = 10;
-  if (points.length >= targetCount) return points.slice(0, 12);
+  // Filter out any points with clearly generic/placeholder names
+  const genericNames = [
+    'city center market', 'grand cathedral', 'scenic lookout', 'riverside walk',
+    'heritage walk', 'unnamed location', 'city center'
+  ];
 
-  const destKey = destination.toLowerCase().includes('manali') ? 'manali' : 'default';
-  const fallbacks = DESTINATION_FALLBACKS[destKey] || DESTINATION_FALLBACKS['default'];
-  
-  const combined = [...points];
-  
-  fallbacks.forEach((fb, i) => {
-    if (combined.length >= targetCount) return;
-    if (!fb.name) return;
-    
-    // Check if name already exists in points
-    const exists = combined.some(p => p.name?.toLowerCase() === fb.name?.toLowerCase());
-    if (!exists) {
-      combined.push(normalizePlaceData(fb, combined.length + i, 'attraction', destination));
-    }
+  const filtered = points.filter(p => {
+    const nameLower = p.name?.toLowerCase().trim() || '';
+    // Reject clearly generic names
+    if (genericNames.includes(nameLower)) return false;
+    // Reject names that are just "${destination} Hotel" or "${destination} Market"
+    if (nameLower === `${destination.toLowerCase()} hotel`) return false;
+    if (nameLower === `${destination.toLowerCase()} market`) return false;
+    return true;
   });
 
-  return combined;
+  // Cap at 15 max to keep the UI manageable
+  return filtered.slice(0, 15);
 }
 
 /**

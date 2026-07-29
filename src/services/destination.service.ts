@@ -354,36 +354,41 @@ STRICT RULES:
       const nearbyRaw = realNearby.flat().filter((p, i, self) => self.findIndex(t => t.placeId === p.placeId) === i).slice(0, 6);
       const similarRaw = realSimilar.flat().filter((p, i, self) => self.findIndex(t => t.placeId === p.placeId) === i).slice(0, 6);
 
-      // Travel distance info (parallel execution)
-      console.log('🚗 Calculating real road distances for nearby destinations...');
-      const nearbyWithDistance = await Promise.all(nearbyRaw.map(async (n) => {
-        const travel = await PlacesService.getTravelInfo(destination, n.name);
-        return {
-          ...n,
-          roadDistance: travel?.distance || 'Nearby',
-          driveTime: travel?.duration || 'Various'
-        };
-      }));
+      // ── Parallel enrichment: distance, sentiment, cafes, clusters ──────────
+      console.log('🔄 Running enrichment pipeline in parallel...');
+      const [distanceResults, sentimentResults, cafeResults, clusterResults] = await Promise.allSettled([
+        // Travel distances for nearby destinations
+        Promise.all(nearbyRaw.map(async (n) => {
+          try {
+            const travel = await PlacesService.getTravelInfo(destination, n.name);
+            return { ...n, roadDistance: travel?.distance || 'Nearby', driveTime: travel?.duration || 'Various' };
+          } catch {
+            return { ...n, roadDistance: 'Nearby', driveTime: 'Various' };
+          }
+        })),
+        // Sentiment reviews for top attractions
+        Promise.all(
+          attractions.slice(0, 5).map(async (a) => {
+            try {
+              const details = await PlacesService.getPlaceDetails(a.placeId);
+              return { name: a.name, reviews: details?.reviews || [] };
+            } catch {
+              return { name: a.name, reviews: [] };
+            }
+          })
+        ),
+        // Nearby cafes
+        Promise.all(
+          attractions.slice(0, 3).map(a => PlacesService.fetchNearby(a.coordinates, 'cafe', 1000).catch(() => []))
+        ),
+        // Itinerary clustering
+        PlacesService.optimizeItineraryDays(attractions, 3).catch(() => []),
+      ]);
 
-      // Sentiment reviews (parallel execution)
-      console.log('📝 Extracting real visitor sentiment for top spots...');
-      const topSpotsDetails = await Promise.all(
-        attractions.slice(0, 5).map(async (a) => {
-          const details = await PlacesService.getPlaceDetails(a.placeId);
-          return { name: a.name, reviews: details?.reviews || [] };
-        })
-      );
-
-      // Nearby context cafes (parallel execution)
-      console.log('📍 Discovering local neighborhood context...');
-      const nearbyCafes = await Promise.all(
-        attractions.slice(0, 3).map(a => PlacesService.fetchNearby(a.coordinates, 'cafe', 1000))
-      );
-      const cafes = nearbyCafes.flat().slice(0, 5);
-
-      // Optimize itinerary clustering
-      console.log('🗺️ Optimizing itinerary clusters...');
-      const dayClusters = await PlacesService.optimizeItineraryDays(attractions, 3);
+      const nearbyWithDistance = distanceResults.status === 'fulfilled' ? distanceResults.value : nearbyRaw.map(n => ({ ...n, roadDistance: 'Nearby', driveTime: 'Various' }));
+      const topSpotsDetails = sentimentResults.status === 'fulfilled' ? sentimentResults.value : attractions.slice(0, 5).map(a => ({ name: a.name, reviews: [] }));
+      const cafes = cafeResults.status === 'fulfilled' ? cafeResults.value.flat().slice(0, 5) : [];
+      const dayClusters = clusterResults.status === 'fulfilled' ? clusterResults.value : [];
 
       // Final Synthesized synthesis
       console.log(`✍️ Finalizing ${tripType}-focused guide with deep real data...`);
@@ -403,9 +408,9 @@ Synthesize a premium travel guide for "${destination}" specifically for a ${trip
 REQUIREMENTS:
 - Descriptions: Generate context-aware descriptions based on the provided visitor sentiment (reviews). Avoid generic filler.
 - Itinerary: Create a 3-day itinerary tailored for a ${tripType} traveler.
-  - Day 1 Cluster: ${JSON.stringify(dayClusters[0]?.map(p => p.name))}
-  - Day 2 Cluster: ${JSON.stringify(dayClusters[1]?.map(p => p.name))}
-  - Day 3 Cluster: ${JSON.stringify(dayClusters[2]?.map(p => p.name))}
+  - Day 1 Cluster: ${JSON.stringify(dayClusters[0]?.map((p: any) => p.name))}
+  - Day 2 Cluster: ${JSON.stringify(dayClusters[1]?.map((p: any) => p.name))}
+  - Day 3 Cluster: ${JSON.stringify(dayClusters[2]?.map((p: any) => p.name))}
 - Nearby/Similar Cards: Enrich with contextual "vibeTags" (e.g. Backpacker Paradise, Snow Destination, Luxury Escape), "bestSeason", and "category".
 - Preparation System:
   - Generate a SMART PACKING CHECKLIST categorized by [Clothing, Footwear, Electronics, Medicines, Documents, Hygiene, Gear].
@@ -413,13 +418,14 @@ REQUIREMENTS:
   - Provide PRACTICAL Travel Tips categorized by [Local Transport, Road Conditions, ATM/Network, Customs, Safety].
   - Include REAL safety alerts (Sudden weather changes, altitude sensitivity, network dead-zones).
 - Ensure all timings, transport recommendations, and vibes are logically sound for ${currentMonth}.
+- CRITICAL: Only use REAL place names from the data provided. Never invent generic names like "City Center Market" or "Heritage Walk".
         `,
         output: { schema: DestinationGuideSchema },
       });
 
       if (!output) throw new Error('Final synthesis failed');
 
-      // ── 4. Parallel Travel Times Enrichment (FIX SEQUENTIAL WATERFALL) ──────
+      // ── 4. Parallel Travel Times Enrichment ─────────────────────────────────
       console.log('⏱️ Enriching itinerary with real travel times in parallel...');
       if (output.itinerary) {
         const travelPromises: Promise<any>[] = [];
@@ -438,7 +444,7 @@ REQUIREMENTS:
                   `${current.activity} ${destination}`,
                   `${next.activity} ${destination}`,
                   mode
-                )
+                ).catch(() => null)
               );
             }
           }
@@ -454,82 +460,114 @@ REQUIREMENTS:
         }
       }
 
-      // Enrich with optimized images
-      const enriched = await enrichWithImages(output);
+      // ── 5. Parallel: Image enrichment + Weather snapshot ───────────────────
+      console.log('🖼️ Enriching images and weather in parallel...');
+      const [enriched, weatherSnapshot] = await Promise.all([
+        enrichWithImages(output),
+        WeatherService.getWeatherForDestination(destination, brainstorm.center).catch(() => null),
+      ]);
 
-      // Fetch Weather Snapshot to store in Cache
-      const weatherSnapshot = await WeatherService.getWeatherForDestination(destination, brainstorm.center);
+      // Filter out any generic/placeholder content the AI may have generated
+      const filteredGuide = this.filterGenericContent(enriched);
 
-      // ── 5. Save to Caches (Redis 30m, MongoDB 30d) ────────────────────────
+      // ── 6. Save to Caches (Redis 30m, MongoDB 30d) ────────────────────────
       try {
         await connectDB();
         await DestinationCache.findOneAndUpdate(
           { destination: cacheKey },
           {
             destination: cacheKey,
-            guideData: enriched,
+            guideData: filteredGuide,
             hotels,
             restaurants: cafes,
-            activities: enriched.activities,
+            activities: filteredGuide.activities,
             weatherSnapshot,
-            images: enriched.heroImage ? [enriched.heroImage] : [],
+            images: filteredGuide.heroImage ? [filteredGuide.heroImage] : [],
             coordinates: brainstorm.center,
             createdAt: new Date()
           },
           { upsert: true, new: true }
         );
         
-        await cacheService.set(redisKey, enriched, 30 * 60); // 30 minutes in Redis
+        await cacheService.set(redisKey, filteredGuide, 30 * 60); // 30 minutes in Redis
       } catch (saveErr) {
         console.warn('⚠️ Cache storage failed:', saveErr);
       }
 
-      return enriched;
+      return filteredGuide;
     } catch (error) {
       console.error('❌ Guide generation failed:', error);
       return this.buildFallback(destination);
     }
   }
 
-  static buildFallback(destination: string): DestinationGuideData {
-    const isManali = destination.toLowerCase().includes('manali');
-    const popularPlaces = isManali ? [
-      { name: 'Solang Valley', description: 'Famed for adventure sports like paragliding and skiing with stunning mountain views.', imageQuery: 'Solang Valley Manali snow paragliding', image: FALLBACK_IMAGE, category: 'Adventure', rating: 4.8, duration: '4-5 hours', bestTime: 'Morning/Afternoon', tags: ['Adventure', 'Snow', 'Sports'], coordinates: { lat: 32.3166, lng: 77.1583 } },
-      { name: 'Rohtang Pass', description: 'High mountain pass connecting Kullu Valley with Lahaul and Spiti Valleys.', imageQuery: 'Rohtang Pass Manali snow mountains', image: FALLBACK_IMAGE, category: 'Scenic Point', rating: 4.9, duration: '6-8 hours', bestTime: 'Early Morning', tags: ['Snow', 'Views', 'Drive'], coordinates: { lat: 32.3716, lng: 77.2435 } },
-      { name: 'Hadimba Devi Temple', description: 'Ancient cave temple dedicated to Hidimbi Devi, surrounded by a cedar forest.', imageQuery: 'Hadimba Temple Manali forest', image: FALLBACK_IMAGE, category: 'Spiritual', rating: 4.7, duration: '1-2 hours', bestTime: 'Anytime', tags: ['Culture', 'Heritage', 'Peace'], coordinates: { lat: 32.2483, lng: 77.1772 } }
-    ] : [
-      { name: 'City Center Market', description: 'The bustling heart of the city with local flavors.', imageQuery: `${destination} market center`, image: FALLBACK_IMAGE, category: 'Shopping', rating: 4.5, duration: '2-3 hours', bestTime: 'Evening', tags: ['Local', 'Vibrant'], coordinates: { lat: 0, lng: 0 } }
+  /**
+   * Filters out obviously generic/placeholder place names from AI-generated data.
+   * Called before returning any guide data to ensure quality.
+   */
+  static filterGenericContent(guide: DestinationGuideData): DestinationGuideData {
+    const genericPatterns = [
+      /^city center market$/i,
+      /^heritage walk$/i,
+      /^unnamed location$/i,
+      /^local market$/i,
+      /^scenic point$/i,
     ];
 
+    const isGeneric = (name: string): boolean => {
+      if (!name) return true;
+      return genericPatterns.some(pattern => pattern.test(name.trim()));
+    };
+
+    // Also reject hotel names that are just "${destination} Hotel"
+    const destLower = guide.destination.toLowerCase();
+    const isGenericHotel = (name: string): boolean => {
+      if (!name) return true;
+      const lower = name.toLowerCase().trim();
+      return lower === `${destLower} hotel` || lower === 'hotel' || lower === 'stay';
+    };
+
+    return {
+      ...guide,
+      popularPlaces: guide.popularPlaces.filter(p => !isGeneric(p.name)),
+      activities: guide.activities.filter(a => !isGeneric(a.name)),
+      hotels: guide.hotels.filter(h => !isGenericHotel(h.name)),
+      rentals: guide.rentals.filter(r => r.name && r.name.length > 3),
+    };
+  }
+
+  /**
+   * Builds a minimal, honest fallback when guide generation fails.
+   * 
+   * KEY PRINCIPLE: Never display fake content. If we can't fetch real data,
+   * show "Currently unavailable" and empty arrays. The UI will handle
+   * empty states gracefully rather than showing misleading fake attractions.
+   */
+  static buildFallback(destination: string): DestinationGuideData {
     return {
       destination,
       hero: {
         title: `Explore ${destination}`,
-        description: `Uncover the hidden gems and breathtaking landscapes of ${destination}.`,
+        description: `Discover the unique experiences and hidden gems of ${destination}. Our AI is preparing a comprehensive guide for you.`,
       },
       quickFacts: {
-        altitude: isManali ? '2050' : 'Altitude unavailable',
-        bestTime: isManali ? 'October to June' : 'October to March',
-        temperature: isManali ? '-5°C to 25°C' : '15°C to 25°C',
-        location: isManali ? 'Himachal Pradesh, India' : 'State, India',
+        altitude: 'Currently unavailable',
+        bestTime: 'Currently unavailable',
+        temperature: 'Currently unavailable',
+        location: 'Currently unavailable',
       },
-      popularPlaces,
-      activities: [
-        { name: 'Heritage Walk', description: 'Discover local heritage.', price: '₹500', location: 'Old City', season: 'All-Season', difficulty: 'Easy', intensity: 'Low', imageQuery: `${destination} walk`, image: FALLBACK_IMAGE, category: 'Culture', rating: 4.5, duration: '2 hours' }
-      ],
-      hotels: [
-        { name: `${destination} Hotel`, description: 'Centrally located comfortable stay.', type: 'Mid-Range', priceRange: '₹3000 - ₹5000', rating: 4.5, imageQuery: 'hotel', image: FALLBACK_IMAGE, amenities: ['Wifi'], bestFor: ['Families'], category: 'Stay' }
-      ],
-      itinerary: [
-        { day: 1, title: 'Arrival & Sightseeing', places: [popularPlaces[0].name], vibe: 'Relaxed', duration: '6 hours', schedule: [{ time: '10:00 AM', activity: 'Arrival', details: 'Check-in and refresh.' }] }
-      ],
-      rentals: [{ name: 'Bike Rental', type: 'Bike', cost: '₹800/day', rating: 4.5, location: 'Center', bestFor: 'Transit', imageQuery: 'bike', image: FALLBACK_IMAGE }],
+      popularPlaces: [],
+      activities: [],
+      hotels: [],
+      itinerary: [],
+      rentals: [],
       nearbyDestinations: [],
       similarDestinations: [],
-      travelTips: [{ category: 'General', tips: ['Carry ID card'] }],
-      packingGuide: [{ category: 'Essentials', items: [{ name: 'Walking shoes', priority: 'Essential' }] }],
-      safetyAlerts: [{ type: 'Weather', message: 'Check conditions.', severity: 'Low' }],
+      travelTips: [{ category: 'General', tips: ['Check local travel advisories before your trip', 'Carry valid identification at all times'] }],
+      packingGuide: [{ category: 'Essentials', items: [{ name: 'Valid ID / Passport', priority: 'Essential' }, { name: 'Comfortable walking shoes', priority: 'Essential' }] }],
+      safetyAlerts: [{ type: 'Safety', message: 'Always verify local conditions and travel advisories before departure.', severity: 'Low' }],
     };
   }
 }
 export default DestinationService;
+
