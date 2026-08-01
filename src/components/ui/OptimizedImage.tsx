@@ -4,11 +4,11 @@
  * OptimizedImage — Production-grade image component for OnlyExplore
  * 
  * Features:
- * - Responsive srcset with width-based sizing
+ * - Supports Unsplash, Pexels, and Cloudinary images through Next.js Image
  * - Blur placeholder during load
- * - Graceful error fallback
+ * - Graceful error fallback with beautiful gradient placeholder
  * - Lazy loading by default (opt-in priority for hero images)
- * - Unsplash CDN parameter optimization (WebP, auto-format)
+ * - CDN parameter optimization (WebP, auto-format)
  */
 
 import { useState, useCallback, memo } from 'react';
@@ -29,18 +29,35 @@ function getFallbackImage() {
 }
 
 /**
- * Optimizes Unsplash URLs for performance.
- * Appends auto-format, WebP, and width params.
+ * Checks if a URL is from a known, whitelisted image CDN.
+ */
+function isKnownCDN(url: string): boolean {
+  return (
+    url.includes('unsplash.com') ||
+    url.includes('images.pexels.com') ||
+    url.includes('res.cloudinary.com')
+  );
+}
+
+/**
+ * Optimizes image URLs for performance.
+ * Appends auto-format, WebP, and width params for supported CDNs.
  */
 function optimizeUrl(url: string, width: number): string {
   if (!url) return getFallbackImage();
 
-  // Only optimize Unsplash URLs
+  // Unsplash optimization
   if (url.includes('unsplash.com')) {
     const baseUrl = url.split('?')[0];
     return `${baseUrl}?auto=format&fit=crop&q=80&w=${width}`;
   }
 
+  // Cloudinary optimization
+  if (url.includes('res.cloudinary.com') && !url.includes(`w_${width}`)) {
+    return url.replace('/upload/', `/upload/w_${width},q_80,f_auto/`);
+  }
+
+  // Pexels images are already optimized via their API
   return url;
 }
 
@@ -90,10 +107,10 @@ export const OptimizedImage = memo(function OptimizedImage({
     onLoad?.();
   }, [onLoad]);
 
-  // If error and showErrorIcon, render placeholder
+  // If error and showErrorIcon, render gradient placeholder
   if (hasError && showErrorIcon) {
     return (
-      <div className={`flex items-center justify-center bg-muted text-muted-foreground ${className}`}>
+      <div className={`flex items-center justify-center bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-950 text-muted-foreground ${className}`}>
         <ImageOff className="w-8 h-8 opacity-20" />
       </div>
     );
@@ -104,10 +121,10 @@ export const OptimizedImage = memo(function OptimizedImage({
     ? sizes || '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
     : sizes;
 
-  // Use next/image for Unsplash images (configured in next.config.ts)
-  const isUnsplash = resolvedSrc.includes('unsplash.com');
+  // Use next/image for all known CDN images (Unsplash, Pexels, Cloudinary)
+  const isOptimizable = isKnownCDN(resolvedSrc);
 
-  if (isUnsplash) {
+  if (isOptimizable) {
     const imgProps: any = {
       src: resolvedSrc,
       alt,
@@ -135,7 +152,7 @@ export const OptimizedImage = memo(function OptimizedImage({
     return <Image {...imgProps} />;
   }
 
-  // For non-Unsplash images, use regular img with lazy loading
+  // For non-CDN images, use regular img with lazy loading and gradient fallback on error
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img

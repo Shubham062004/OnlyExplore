@@ -1,5 +1,6 @@
 import PlaceImages from '@/models/PlaceImages';
 import { connectDB } from '@/lib/mongodb';
+import { PexelsService } from '@/services/pexels.service';
 
 /**
  * Premium Image Service for OnlyExplore
@@ -88,11 +89,25 @@ export async function fetchPremiumImage(query: string, options: {
   const tryFetch = async (q: string) => {
     try {
       const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(q)}&per_page=15&orientation=landscape&client_id=${accessKey}`;
-      const res = await fetch(url, { next: { revalidate: 86400 } }); // Cache API response for 24h
+      const res = await fetch(url, { 
+        next: { revalidate: 86400 },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.status === 429) {
+        console.warn('[lib/imageService] Unsplash 429 rate limited');
+        return null;
+      }
+      if (res.status === 401 || res.status === 403) {
+        console.error(`[lib/imageService] Unsplash ${res.status} — check API key`);
+        return null;
+      }
       if (!res.ok) return null;
       const data = await res.json();
       return data.results && data.results.length > 0 ? data.results : null;
-    } catch {
+    } catch (err: any) {
+      if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+        console.warn('[lib/imageService] Unsplash timeout for:', q);
+      }
       return null;
     }
   };
@@ -107,23 +122,35 @@ export async function fetchPremiumImage(query: string, options: {
     
     // Save to Cache in background (don't block the response, but handle errors)
     if (options.cacheKey) {
-      await connectDB();
-      PlaceImages.findOneAndUpdate(
-        { placeKey: options.cacheKey.toLowerCase() },
-        { 
-          placeName: query, 
-          cityName: query.split(' ').pop() || '', 
-          images, 
-          lastFetched: new Date() 
-        },
-        { upsert: true, new: true }
-      ).catch(err => console.error("Cache save error:", err));
+      connectDB().then(() => {
+        PlaceImages.findOneAndUpdate(
+          { placeKey: options.cacheKey!.toLowerCase() },
+          { 
+            placeName: query, 
+            cityName: query.split(' ').pop() || '', 
+            images, 
+            lastFetched: new Date() 
+          },
+          { upsert: true, new: true }
+        ).catch(err => console.error("Cache save error:", err));
+      }).catch(() => {});
     }
 
     return images[Math.floor(Math.random() * images.length)];
   }
 
-  // 3. Absolute Fallback
+  // 3. Try Pexels fallback
+  if (PexelsService.isAvailable()) {
+    console.log(`[lib/imageService] Trying Pexels for: "${query}"`);
+    const pexelsUrl = await PexelsService.fetchSinglePhoto(query);
+    if (pexelsUrl) return pexelsUrl;
+    if (options.fallbackQuery) {
+      const pexelsFallback = await PexelsService.fetchSinglePhoto(options.fallbackQuery);
+      if (pexelsFallback) return pexelsFallback;
+    }
+  }
+
+  // 4. Absolute Fallback
   return getEmergencyFallback(query);
 }
 
@@ -138,15 +165,26 @@ export async function fetchBulkPremiumImages(query: string, count: number = 15):
 
   try {
     const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${count}&orientation=landscape&client_id=${accessKey}`;
-    const res = await fetch(url, { next: { revalidate: 86400 } });
-    if (!res.ok) return Array(count).fill(getEmergencyFallback(query));
-    
-    const data = await res.json();
-    if (data.results && data.results.length > 0) {
-      return data.results.map((r: any) => r.urls.regular);
+    const res = await fetch(url, { 
+      next: { revalidate: 86400 },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        return data.results.map((r: any) => r.urls.regular);
+      }
+    } else {
+      console.warn(`[lib/imageService] Unsplash bulk ${res.status} for: "${query}"`);
     }
-  } catch (e) {
-    console.warn("Bulk fetch error:", e);
+  } catch (e: any) {
+    console.warn("Bulk fetch error:", e?.message || e);
+  }
+
+  // Try Pexels fallback
+  if (PexelsService.isAvailable()) {
+    const pexelsUrls = await PexelsService.fetchBulkPhotos(query, count);
+    if (pexelsUrls.length > 0) return pexelsUrls;
   }
   
   return Array(count).fill(getEmergencyFallback(query));

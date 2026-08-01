@@ -1,6 +1,7 @@
 /**
  * Shared image utility functions for OnlyExplore.
  * Optimized for high-performance rendering and resilient fallbacks.
+ * Supports Unsplash, Pexels, and Cloudinary image URLs.
  */
 
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1000&auto=format&fit=crop";
@@ -17,7 +18,7 @@ const CURATED_FALLBACKS = [
 /**
  * Validates and sanitizes image URLs.
  * Detects broken or generic placeholder URLs and provides a safe fallback.
- * Always appends WebP/auto-format params to Unsplash URLs.
+ * Optimizes Unsplash, Pexels, and Cloudinary URLs with CDN params.
  */
 export function safeImageResolver(url: string | null | undefined, fallbackQuery?: string, heroImage?: string): string {
   if (!url || 
@@ -28,26 +29,49 @@ export function safeImageResolver(url: string | null | undefined, fallbackQuery?
       url.length < 15) {
     
     if (heroImage && !heroImage.includes('placeholder') && !heroImage.includes('placehold.co')) {
-      return optimizeUnsplashUrl(heroImage, 800);
+      return optimizeImageUrl(heroImage, 800);
     }
 
     return CURATED_FALLBACKS[Math.floor(Math.random() * CURATED_FALLBACKS.length)];
   }
   
-  // Optimize Unsplash URLs automatically
-  return optimizeUnsplashUrl(url, 800);
+  // Optimize URLs from all supported CDNs
+  return optimizeImageUrl(url, 800);
 }
 
 /**
- * Optimizes an Unsplash URL with specific dimensions and quality settings.
- * Appends auto-format (WebP when supported), quality, and width params.
+ * Optimizes image URLs from any supported CDN.
+ * Unsplash: Appends auto-format, WebP, quality, and width params.
+ * Cloudinary: Injects transformation params into URL path.
+ * Pexels: Already optimized by their API.
+ */
+export function optimizeImageUrl(url: string, width = 800, quality = 80): string {
+  if (!url) return FALLBACK_IMAGE;
+
+  // Unsplash optimization
+  if (url.includes('unsplash.com')) {
+    const baseUrl = url.split('?')[0];
+    return `${baseUrl}?auto=format&fit=crop&q=${quality}&w=${width}`;
+  }
+  
+  // Cloudinary optimization
+  if (url.includes('res.cloudinary.com') && !url.includes(`w_${width}`)) {
+    return url.replace('/upload/', `/upload/w_${width},q_${quality},f_auto/`);
+  }
+
+  // Pexels images are pre-optimized
+  if (url.includes('images.pexels.com')) {
+    return url;
+  }
+
+  return url;
+}
+
+/**
+ * Backwards-compatible alias for optimizeImageUrl.
  */
 export function optimizeUnsplashUrl(url: string, width = 800, quality = 80): string {
-  if (!url.includes('unsplash.com')) return url;
-  
-  // Strip existing params and add optimized ones
-  const baseUrl = url.split('?')[0];
-  return `${baseUrl}?auto=format&fit=crop&q=${quality}&w=${width}`;
+  return optimizeImageUrl(url, width, quality);
 }
 
 /**
@@ -57,15 +81,15 @@ export function getImageUrl(url: string, variant: 'hero' | 'card' | 'thumb' = 'c
   const widthMap = { hero: 1600, card: 800, thumb: 400 };
   const qualityMap = { hero: 85, card: 80, thumb: 75 };
   
-  return optimizeUnsplashUrl(url, widthMap[variant], qualityMap[variant]);
+  return optimizeImageUrl(url, widthMap[variant], qualityMap[variant]);
 }
 
 /**
  * Generates an optimized URL with specific dimensions and quality settings.
- * @deprecated Use optimizeUnsplashUrl or getImageUrl instead
+ * @deprecated Use optimizeImageUrl or getImageUrl instead
  */
 export function getOptimizedUrl(url: string, width = 800, quality = 80): string {
-  return optimizeUnsplashUrl(url, width, quality);
+  return optimizeImageUrl(url, width, quality);
 }
 
 /**

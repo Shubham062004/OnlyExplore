@@ -72,7 +72,7 @@ class CacheService {
   private memoryCache: MemoryCache;
 
   constructor() {
-    this.memoryCache = new MemoryCache(200);
+    this.memoryCache = new MemoryCache(500);
     const url = process.env.UPSTASH_REDIS_REST_URL;
     const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 

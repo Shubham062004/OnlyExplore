@@ -15,10 +15,23 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
+    unoptimized: process.env.NEXT_IMAGE_UNOPTIMIZED === 'true',
     remotePatterns: [
       {
         protocol: 'https',
         hostname: '**.unsplash.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.cloudinary.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.pexels.com',
         port: '',
         pathname: '/**',
       },
