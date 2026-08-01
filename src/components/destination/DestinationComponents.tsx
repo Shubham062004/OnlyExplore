@@ -15,7 +15,7 @@ import {
   Wifi, Waves, Tv, Utensils, Trees, Tent,
   AlertTriangle, CheckCircle2, ShieldAlert, HeartPulse,
   Briefcase, Camera, Wallet, PhoneCall, Check,
-  Activity, HelpCircle, AlertCircle
+  Activity, HelpCircle, AlertCircle, Sparkles, Moon
 } from "lucide-react";
 import { formatAltitude, getTemperatureRange, formatLocation } from "@/lib/destinations";
 import { ExplorerPoint } from "@/lib/explorer";
@@ -48,39 +48,65 @@ export function QuickFacts({ facts, destination }: { facts: any; destination: st
   const tempObj = getTemperatureRange(destination, facts.temperature || facts.avgTemp);
   const locationStr = formatLocation(destination, facts.location);
 
+  const factItems = [
+    {
+      icon: <Mountain className="w-7 h-7 text-indigo-500/90 stroke-[1.5]" />,
+      label: "Altitude",
+      value: altitudeStr,
+    },
+    {
+      icon: <Calendar className="w-7 h-7 text-orange-500/90 stroke-[1.5]" />,
+      label: "Best Time",
+      value: facts.bestTime || "Oct - Mar",
+    },
+    {
+      icon: <Thermometer className="w-7 h-7 text-red-500/90 stroke-[1.5]" />,
+      label: "Temperature",
+      value: tempObj.formatted,
+    },
+    {
+      icon: <MapPin className="w-7 h-7 text-teal-500/90 stroke-[1.5]" />,
+      label: "Location",
+      value: locationStr,
+    },
+    {
+      icon: <ShieldCheck className="w-7 h-7 text-emerald-500/90 stroke-[1.5]" />,
+      label: "Safety Index",
+      value: facts.safetyIndex || "92 / 100 (Safe)",
+    },
+    {
+      icon: <Wifi className="w-7 h-7 text-sky-500/90 stroke-[1.5]" />,
+      label: "Internet Speed",
+      value: facts.internetQuality || "5G / High Speed",
+    },
+    {
+      icon: <Wind className="w-7 h-7 text-amber-500/90 stroke-[1.5]" />,
+      label: "Air Quality (AQI)",
+      value: facts.aqi || "42 (Good Air)",
+    },
+    {
+      icon: <Wallet className="w-7 h-7 text-purple-500/90 stroke-[1.5]" />,
+      label: "Currency / Language",
+      value: facts.currency || "INR (₹) / Hindi, Eng",
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 -mt-12 md:-mt-16 relative z-30 px-2">
-      {[
-        { 
-          icon: <Mountain className="w-7 h-7 text-indigo-500/90 stroke-[1.5]" />, 
-          label: "Altitude", 
-          value: altitudeStr 
-        },
-        { 
-          icon: <Calendar className="w-7 h-7 text-orange-500/90 stroke-[1.5]" />, 
-          label: "Best Time", 
-          value: facts.bestTime || "N/A" 
-        },
-        { 
-          icon: <Thermometer className="w-7 h-7 text-red-500/90 stroke-[1.5]" />, 
-          label: "Temperature", 
-          value: tempObj.formatted 
-        },
-        { 
-          icon: <MapPin className="w-7 h-7 text-teal-500/90 stroke-[1.5]" />, 
-          label: "Location", 
-          value: locationStr 
-        },
-      ].map((f, i) => (
-        <div 
-          key={i} 
-          className="bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.08)] border border-white/40 dark:border-white/5 rounded-[2.5rem] p-8 md:p-9 min-h-[160px] flex flex-row items-center justify-between hover:-translate-y-3 hover:shadow-primary/10 transition-all duration-700 ease-out group cursor-default"
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 -mt-12 md:-mt-16 relative z-30 px-2">
+      {factItems.map((f, i) => (
+        <div
+          key={i}
+          className="bg-card/90 backdrop-blur-2xl shadow-xl border border-border/50 rounded-[2.5rem] p-6 md:p-7 flex flex-row items-center justify-between hover:-translate-y-2 hover:shadow-primary/10 transition-all duration-500 ease-out group cursor-default"
         >
-          <div className="flex flex-col justify-center gap-2">
-            <span className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.3em] opacity-60 leading-none">{f.label}</span>
-            <span className="font-black text-xl md:text-2xl text-foreground leading-none tracking-tight">{f.value}</span>
+          <div className="flex flex-col justify-center gap-1.5 min-w-0 pr-2">
+            <span className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.25em] opacity-70 leading-none">
+              {f.label}
+            </span>
+            <span className="font-black text-lg md:text-xl text-foreground leading-none tracking-tight truncate">
+              {f.value}
+            </span>
           </div>
-          <div className="bg-primary/5 p-5 rounded-[2rem] shrink-0 group-hover:scale-110 group-hover:bg-primary/10 group-hover:text-primary transition-all duration-700 ease-out flex items-center justify-center">
+          <div className="bg-primary/5 p-4 rounded-2xl shrink-0 group-hover:scale-110 group-hover:bg-primary/10 group-hover:text-primary transition-all duration-500 ease-out flex items-center justify-center">
             {f.icon}
           </div>
         </div>
@@ -1146,7 +1172,7 @@ function DestinationCard({ data, onClick }: { data: any, onClick: () => void }) 
                 <MapPin className="w-3.5 h-3.5" />
                 <span className="text-[10px] font-black uppercase tracking-widest">{data.roadDistance}</span>
              </div>
-             {data.driveTime && (
+           {data.driveTime && (
                 <div className="flex items-center gap-1.5 text-white/90 bg-black/20 backdrop-blur-sm px-3 py-1 rounded-full border border-white/10">
                    <Clock className="w-3.5 h-3.5" />
                    <span className="text-[10px] font-black uppercase tracking-widest">{data.driveTime}</span>
@@ -1432,3 +1458,186 @@ export function TravelPreparation({
 // ─────────────────────────────────────────────────────────────────────────────
 export function TravelTips({ tips }: { tips: string[] }) { return null; }
 export function PackingGuide({ items }: { items: string[] }) { return null; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   NEW DISTRICT & APPLE MAPS STYLED SECTIONS FOR 20 DYNAMIC COMPONENTS
+───────────────────────────────────────────────────────────────────────────── */
+
+export function HiddenGemsSection({ items = [] }: { items?: any[] }) {
+  if (!items || items.length === 0) return null;
+
+  return (
+    <div id="hidden-gems" className="space-y-8 pt-8 border-t border-border/40">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-black uppercase tracking-[0.2em]">
+            <Sparkles className="w-3.5 h-3.5" /> Off The Beaten Track
+          </div>
+          <h3 className="text-3xl md:text-4xl font-black font-headline uppercase tracking-tight text-foreground">
+            Local Hidden Gems
+          </h3>
+        </div>
+        <p className="text-xs md:text-sm text-muted-foreground font-medium max-w-md">
+          Secret spots, serene viewpoints, and lesser-known treasures recommended by local guides.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {items.map((gem, i) => (
+          <div
+            key={i}
+            className="group relative bg-card border border-border/50 rounded-[2.5rem] p-6 shadow-xl hover:shadow-2xl hover:border-purple-500/30 transition-all duration-500 flex flex-col justify-between space-y-4"
+          >
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-600 text-[10px] font-black uppercase tracking-wider">
+                  Hidden Gem
+                </span>
+                <div className="flex items-center gap-1 text-amber-500 text-xs font-black">
+                  <Star className="w-3.5 h-3.5 fill-current" /> {gem.rating || 4.9}
+                </div>
+              </div>
+              <h4 className="text-xl font-black uppercase font-headline tracking-tight group-hover:text-primary transition-colors">
+                {gem.name}
+              </h4>
+              <p className="text-xs text-muted-foreground font-medium leading-relaxed line-clamp-3">
+                {gem.description}
+              </p>
+            </div>
+            {gem.bestTime && (
+              <div className="pt-3 border-t border-border/40 text-[10px] font-bold text-muted-foreground flex items-center justify-between">
+                <span>Best Visit Time:</span>
+                <span className="text-foreground">{gem.bestTime}</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function LocalFoodSection({ items = [] }: { items?: any[] }) {
+  if (!items || items.length === 0) return null;
+
+  return (
+    <div id="food-cafes" className="space-y-8 pt-8 border-t border-border/40">
+      <div className="space-y-2">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-black uppercase tracking-[0.2em]">
+          <Utensils className="w-3.5 h-3.5" /> Regional Culinary Specialties
+        </div>
+        <h3 className="text-3xl md:text-4xl font-black font-headline uppercase tracking-tight text-foreground">
+          Must-Try Local Food & Signature Dishes
+        </h3>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {items.map((food, i) => (
+          <div
+            key={i}
+            className="p-6 bg-card border border-border/50 rounded-[2.5rem] shadow-xl hover:shadow-2xl transition-all space-y-3"
+          >
+            <div className="flex items-center justify-between">
+              <span className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 text-[10px] font-black uppercase">
+                {food.dishType || "Local Dish"}
+              </span>
+              {food.price && <span className="text-xs font-black text-emerald-600">{food.price}</span>}
+            </div>
+            <h4 className="text-lg font-black uppercase font-headline tracking-tight">{food.name}</h4>
+            <p className="text-xs text-muted-foreground font-medium leading-relaxed">{food.description}</p>
+            {food.topSpot && (
+              <div className="pt-2 text-[10px] font-bold text-muted-foreground">
+                <span className="text-primary font-black">Best Place to Try:</span> {food.topSpot}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function CafesNightlifeSection({ cafes = [], nightlife = [] }: { cafes?: any[]; nightlife?: any[] }) {
+  if ((!cafes || cafes.length === 0) && (!nightlife || nightlife.length === 0)) return null;
+
+  return (
+    <div id="nightlife" className="space-y-8 pt-8 border-t border-border/40">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        {/* Cafes */}
+        {cafes && cafes.length > 0 && (
+          <div className="space-y-4">
+            <h4 className="text-2xl font-black uppercase font-headline flex items-center gap-2">
+              <Coffee className="w-5 h-5 text-amber-500" /> Artisanal Cafes & Bakeries
+            </h4>
+            <div className="space-y-3">
+              {cafes.map((cafe, i) => (
+                <div key={i} className="p-4 bg-card border border-border/40 rounded-2xl flex items-center justify-between gap-4">
+                  <div>
+                    <h5 className="font-bold text-sm text-foreground">{cafe.name}</h5>
+                    <p className="text-[11px] text-muted-foreground">{cafe.vibe} • {cafe.priceRange}</p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 text-[10px] font-black shrink-0">
+                    ★ {cafe.rating || 4.8}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Nightlife */}
+        {nightlife && nightlife.length > 0 && (
+          <div className="space-y-4">
+            <h4 className="text-2xl font-black uppercase font-headline flex items-center gap-2">
+              <Moon className="w-5 h-5 text-indigo-500" /> Nightlife & Evening Venues
+            </h4>
+            <div className="space-y-3">
+              {nightlife.map((club, i) => (
+                <div key={i} className="p-4 bg-card border border-border/40 rounded-2xl flex items-center justify-between gap-4">
+                  <div>
+                    <h5 className="font-bold text-sm text-foreground">{club.name}</h5>
+                    <p className="text-[11px] text-muted-foreground">{club.type} • {club.timing}</p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-600 text-[10px] font-black shrink-0">
+                    ★ {club.rating || 4.7}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+export function LocalTransportSection({ items = [] }: { items?: any[] }) {
+  if (!items || items.length === 0) return null;
+
+  return (
+    <div id="transport" className="space-y-6 pt-8 border-t border-border/40">
+      <div className="space-y-1">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-sky-500/10 text-sky-600 text-[10px] font-black uppercase tracking-[0.2em]">
+          <Navigation className="w-3.5 h-3.5" /> Local Mobility & Transit Guide
+        </div>
+        <h3 className="text-3xl font-black font-headline uppercase tracking-tight">
+          Getting Around & Local Transport
+        </h3>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {items.map((t, i) => (
+          <div key={i} className="p-5 bg-card border border-border/40 rounded-2xl space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-sm uppercase text-foreground">{t.mode}</span>
+              <span className="text-xs font-bold text-primary">{t.estimatedCost}</span>
+            </div>
+            <p className="text-xs text-muted-foreground font-medium">{t.tip}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

@@ -134,6 +134,55 @@ const DestinationGuideSchema = z.object({
     message: z.string(),
     severity: z.enum(['Low', 'Medium', 'High']),
   })),
+  vibeCategory: z.enum(['Beach', 'Alpine', 'Heritage', 'Urban', 'Nature']).optional(),
+  hiddenGems: z.array(z.object({
+    name: z.string(),
+    description: z.string(),
+    rating: z.number().optional(),
+    imageQuery: z.string().optional(),
+    bestTime: z.string().optional(),
+  })).optional(),
+  localFood: z.array(z.object({
+    name: z.string(),
+    dishType: z.string(),
+    price: z.string().optional(),
+    description: z.string(),
+    topSpot: z.string().optional(),
+    imageQuery: z.string().optional(),
+  })).optional(),
+  cafes: z.array(z.object({
+    name: z.string(),
+    vibe: z.string(),
+    priceRange: z.string(),
+    rating: z.number().optional(),
+    address: z.string().optional(),
+    imageQuery: z.string().optional(),
+  })).optional(),
+  nightlife: z.array(z.object({
+    name: z.string(),
+    type: z.string(),
+    timing: z.string(),
+    rating: z.number().optional(),
+    imageQuery: z.string().optional(),
+  })).optional(),
+  shopping: z.array(z.object({
+    name: z.string(),
+    items: z.string(),
+    bestFor: z.string(),
+    location: z.string().optional(),
+    imageQuery: z.string().optional(),
+  })).optional(),
+  events: z.array(z.object({
+    name: z.string(),
+    season: z.string(),
+    description: z.string(),
+    category: z.string().optional(),
+  })).optional(),
+  localTransport: z.array(z.object({
+    mode: z.string(),
+    estimatedCost: z.string(),
+    tip: z.string(),
+  })).optional(),
 });
 
 export type RawGuide = z.infer<typeof DestinationGuideSchema>;

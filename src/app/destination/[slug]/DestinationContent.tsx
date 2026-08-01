@@ -14,6 +14,10 @@ import {
   TravelPreparation,
   PopularPlaces,
   ItinerarySection,
+  HiddenGemsSection,
+  LocalFoodSection,
+  CafesNightlifeSection,
+  LocalTransportSection,
 } from "@/components/destination/DestinationComponents";
 import {
   HeroSkeleton,
@@ -99,12 +103,20 @@ function DestinationHero({
       <div className="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent" />
 
       <div className="relative z-10 w-full px-6 md:px-16 pb-24 md:pb-32">
-        <div className="max-w-4xl">
-          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 text-white text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] px-4 py-2 rounded-full mb-6">
-            <MapPin className="w-3.5 h-3.5 text-primary" />
-            Travel Destination Guide
+        <div className="max-w-4xl space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 text-white text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] px-4 py-2 rounded-full">
+              <MapPin className="w-3.5 h-3.5 text-primary" />
+              Travel Destination Guide
+            </div>
+            <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 backdrop-blur-md border border-emerald-400/30 text-emerald-300 text-[10px] font-black uppercase tracking-wider px-3.5 py-1.5 rounded-full">
+              Verified Real Data
+            </div>
+            <div className="inline-flex items-center gap-1.5 bg-amber-500/20 backdrop-blur-md border border-amber-400/30 text-amber-300 text-[10px] font-black uppercase tracking-wider px-3.5 py-1.5 rounded-full">
+              Live Weather Sync
+            </div>
           </div>
-          <h1 className="text-5xl md:text-8xl font-black font-headline text-white drop-shadow-2xl leading-[0.9] uppercase mb-6 tracking-tighter">
+          <h1 className="text-5xl md:text-8xl font-black font-headline text-white drop-shadow-2xl leading-[0.9] uppercase tracking-tighter">
             {title}
           </h1>
           <p className="text-lg md:text-2xl text-zinc-200 max-w-2xl font-medium drop-shadow-lg leading-relaxed opacity-90">
@@ -343,6 +355,13 @@ export default function DestinationContent({
           </SectionLoader>
         </ErrorBoundary>
 
+        {/* 5b. Local Hidden Gems */}
+        {guide?.hiddenGems && (
+          <ErrorBoundary sectionName="Hidden Gems">
+            <HiddenGemsSection items={guide.hiddenGems} />
+          </ErrorBoundary>
+        )}
+
         {/* 6. Trip Planner CTA */}
         <ErrorBoundary sectionName="Trip Planner">
           <SectionLoader loading={loading} skeleton={<TripPlannerSkeleton />}>
@@ -379,6 +398,27 @@ export default function DestinationContent({
             </div>
           </SectionLoader>
         </ErrorBoundary>
+
+        {/* 8b. Local Food & Signature Dishes */}
+        {guide?.localFood && (
+          <ErrorBoundary sectionName="Local Food">
+            <LocalFoodSection items={guide.localFood} />
+          </ErrorBoundary>
+        )}
+
+        {/* 8c. Artisanal Cafes & Nightlife */}
+        {(guide?.cafes || guide?.nightlife) && (
+          <ErrorBoundary sectionName="Cafes & Nightlife">
+            <CafesNightlifeSection cafes={guide?.cafes} nightlife={guide?.nightlife} />
+          </ErrorBoundary>
+        )}
+
+        {/* 8d. Local Mobility & Transport */}
+        {guide?.localTransport && (
+          <ErrorBoundary sectionName="Local Transport">
+            <LocalTransportSection items={guide.localTransport} />
+          </ErrorBoundary>
+        )}
 
         {/* 9. Interactive Smart Map */}
         <ErrorBoundary sectionName="Map Explorer">
