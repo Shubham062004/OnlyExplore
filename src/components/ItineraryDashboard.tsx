@@ -7,11 +7,20 @@ import {
   Share2, Plane, Bed, Utensils, Info, Navigation, Activity, Plus,
   Trash2, ArrowUp, ArrowDown, Sparkles, RefreshCw, Save, Check
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { TravelMap } from "@/components/TravelMap";
 import { formatCurrencyDisplay } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+
+const TravelMap = dynamic(() => import("@/components/TravelMap").then(mod => mod.TravelMap), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[380px] w-full rounded-2xl bg-muted/30 border border-border animate-pulse flex items-center justify-center text-xs text-muted-foreground">
+      Loading interactive map pins...
+    </div>
+  )
+});
 
 interface ActivityItem {
   id?: string;

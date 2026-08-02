@@ -387,15 +387,19 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          itinerary: currentItinerary,
           currentItinerary,
           editRequest: editPrompt,
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to update itinerary");
-      
       const json = await res.json();
-      const updatedResult = json.success ? json.data : (json.data || json);
+      if (!res.ok || !json.success) {
+        const errorDetail = json.error ? `[${json.stage || 'API Error'}]: ${json.error}` : "Failed to update itinerary";
+        throw new Error(errorDetail);
+      }
+      
+      const updatedResult = json.data;
 
       const botMessage: ChatMessage = {
         type: "bot",

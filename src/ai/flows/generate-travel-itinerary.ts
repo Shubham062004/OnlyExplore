@@ -203,7 +203,7 @@ const generateTravelItineraryFlow = ai.defineFlow(
         }
       }
 
-      sendChunk("Crafting personalized itinerary days...");
+      sendChunk("Crafting personalized itinerary days & curating visuals...");
       const promptInput = {
         ...input,
         weatherInfo,
@@ -211,19 +211,24 @@ const generateTravelItineraryFlow = ai.defineFlow(
         offlineLink,
       };
 
-      const { output } = await prompt(promptInput);
+      // Launch Gemini AI generation & Destination Images in parallel
+      const [{ output }, images] = await Promise.all([
+        prompt(promptInput),
+        getDestinationImages(input.destination).catch((err) => {
+          console.warn("Image fetch fallback:", err);
+          return { heroImage: "/bg_image2.png", popularPlaces: [], nearby: [] };
+        })
+      ]);
 
       if (!output) {
         throw new Error('AI failed to generate itinerary.');
       }
 
-      sendChunk("Curating stunning destination visuals...");
-      const images = await getDestinationImages(input.destination);
       output.heroImage = images.heroImage;
       output.images = {
         hero: images.heroImage,
-        popularPlaces: images.popularPlaces,
-        nearby: images.nearby
+        popularPlaces: images.popularPlaces || [],
+        nearby: images.nearby || []
       };
 
       sendChunk("Finalizing budget and packing guide...");
