@@ -21,6 +21,7 @@ import { formatAltitude, getTemperatureRange, formatLocation } from "@/lib/desti
 import { ExplorerPoint } from "@/lib/explorer";
 import { safeImageResolver } from "@/lib/imageUtils";
 import { InteractiveSmartMap } from "@/components/ui/InteractiveSmartMap";
+import { useAuthIntent } from "@/components/auth";
 
 // Curated fallback image for when image loading fails — never show blank cards
 const IMAGE_FALLBACK = "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=800&auto=format&fit=crop";
@@ -447,6 +448,13 @@ export const PopularPlaces = memo(function PopularPlaces({
 // ─────────────────────────────────────────────────────────────────────────────
 export function TripPlannerCTA({ destination }: { destination: string }) {
   const router = useRouter();
+  const { requireAuth } = useAuthIntent();
+
+  // Prefetch /chat route bundle on mount for instant sub-300ms navigation
+  useEffect(() => {
+    router.prefetch('/chat');
+  }, [router]);
+
   return (
     <div className="w-full bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-[2rem] p-8 md:p-12 text-white shadow-2xl mt-16 relative overflow-hidden">
       <div className="absolute top-0 right-0 -mr-20 -mt-20 w-72 h-72 bg-white/10 rounded-full blur-3xl" />
@@ -473,7 +481,7 @@ export function TripPlannerCTA({ destination }: { destination: string }) {
             ].map((text) => (
               <button
                 key={text}
-                onClick={() => router.push(`/chat?query=${encodeURIComponent(text)}&destination=${encodeURIComponent(destination)}`)}
+                onClick={() => requireAuth({ route: '/chat', prompt: text, query: text, destination, type: 'plan_trip' })}
                 className="px-6 py-3 rounded-full bg-white/20 hover:bg-white/30 transition text-left text-sm font-medium border border-white/10"
               >
                 {text}
@@ -521,7 +529,7 @@ const ActivityCard = memo(({
   destination: string;
   onViewDetails?: (place: any) => void;
 }) => {
-  const router = useRouter();
+  const { requireAuth } = useAuthIntent();
 
   const getSeasonBadge = (season: string) => {
     const config: any = {
@@ -600,7 +608,7 @@ const ActivityCard = memo(({
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              router.push(`/chat?destination=${encodeURIComponent(destination)}&prompt=${encodeURIComponent(`Tell me about ${activity.name}`)}`);
+              requireAuth({ route: '/chat', destination, prompt: `Tell me about ${activity.name}`, type: 'plan_trip' });
             }}
             className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-md"
           >
@@ -623,6 +631,7 @@ export function AdventureActivities({
 }) {
   const [activeSeason, setActiveSeason] = useState('All');
   const [activeCategory, setActiveCategory] = useState('All');
+  const { requireAuth } = useAuthIntent();
 
   if (!activities || activities.length === 0) return null;
 
@@ -711,7 +720,7 @@ export function AdventureActivities({
       <div className="flex flex-col items-center pt-12 space-y-6">
          <div className="h-px w-24 bg-border/50" />
          <button
-           onClick={() => window.location.href = `/chat?destination=${encodeURIComponent(destination)}&prompt=activities`}
+           onClick={() => requireAuth({ route: '/chat', destination, prompt: 'activities', type: 'plan_trip' })}
            className="px-12 h-16 rounded-full border-2 border-primary/30 text-primary font-black uppercase tracking-[0.3em] text-[10px] hover:bg-primary hover:text-white transition-all shadow-xl shadow-black/5 flex items-center gap-2"
          >
            Browse All {destination} Experiences <ChevronRight className="w-5 h-5" />
@@ -733,7 +742,7 @@ const StayCard = memo(({
   destination: string;
   onViewDetails?: (place: any) => void;
 }) => {
-  const router = useRouter();
+  const { requireAuth } = useAuthIntent();
 
   const getAmenityIcon = (amenity: string) => {
     const low = amenity?.toLowerCase() || '';
@@ -809,7 +818,7 @@ const StayCard = memo(({
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              router.push(`/chat?destination=${encodeURIComponent(destination)}&prompt=${encodeURIComponent(`Book ${hotel.name}`)}`);
+              requireAuth({ route: '/chat', destination, prompt: `Book ${hotel.name}`, type: 'plan_trip' });
             }}
             className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-md"
           >

@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { DestinationSearch } from "@/components/DestinationSearch";
 import { HomeCategories } from "@/components/HomeCategories";
 import { TrendingDestinations } from "@/components/TrendingDestinations";
 import { DestinationCard } from "@/components/DestinationCard";
 import { Sidebar } from "@/components/Sidebar";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Sparkles, TrendingUp, Heart, Compass, Clock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuthIntent } from "@/components/auth";
 
 const RECOMMENDED = [
   { name: "Manali", image: "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?q=80&w=800&auto=format&fit=crop", rating: 4.9, season: "Oct - Feb", budget: "₹14,500", duration: "4 Days" },
@@ -17,7 +18,7 @@ const RECOMMENDED = [
   { name: "Udaipur", image: "https://images.unsplash.com/photo-1605649487212-47bdab064df7?q=80&w=800&auto=format&fit=crop", rating: 4.85, season: "Sep - Mar", budget: "₹16,000", duration: "4 Days" },
 ];
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
   const [continueTrip, setContinueTrip] = useState<any | null>(null);
 
@@ -104,5 +105,13 @@ export default function Home() {
         
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense>
+      <HomeContent />
+    </Suspense>
   );
 }

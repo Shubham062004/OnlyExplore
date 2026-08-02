@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -18,17 +18,20 @@ import {
   User,
   Wallet,
   Wand2,
-  Thermometer,
-  CloudRain,
-  Wind,
-  Droplets,
-  CheckSquare,
-  ShieldQuestion,
-  Tent,
-  CircleDollarSign,
+  Users,
+  CheckCircle2,
+  History,
+  ChevronDown,
+  ExternalLink,
+  FileText,
+  Clock,
+  Compass,
+  ArrowRight,
+  ShieldAlert,
+  Map as MapIcon,
+  Luggage,
 } from 'lucide-react';
 
-// Server Action imports removed in favor of secure REST API wrappers to resolve RSC Webpack compilation issues.
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -36,14 +39,19 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatCurrencyDisplay, parseCurrencyValue } from '@/lib/currency';
 import { Sidebar } from './Sidebar';
 import { useSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { TravelMap } from '@/components/TravelMap';
 import { ItineraryDashboard } from '@/components/ItineraryDashboard';
 
 const ActivitySchema = z.object({
@@ -94,25 +102,17 @@ const ItineraryDaySchema = z.object({
   evening: z.array(ActivitySchema).optional(),
   cost: z.number().optional(),
   travelTips: z.string().optional(),
-
-  // Fallback
   activities: z.array(ActivitySchema).optional(),
 });
 
 const ItinerarySchema = z.object({
   destination: z.string(),
-  duration: z.number(),
-  budget: z.number(),
-  interests: z.array(z.string()),
-  
   tripOverview: TripOverviewSchema.optional(),
   budgetBreakdown: BudgetSchema.optional(),
-  
   days: z.array(ItineraryDaySchema),
   hotels: z.array(HotelSchema).optional(),
   restaurants: z.array(RestaurantSchema).optional(),
   emergencyInfo: EmergencySchema.optional(),
-
   totalCost: z.number().optional(),
   notes: z.string().optional(),
   weatherForecast: z.any().optional(),
@@ -130,72 +130,101 @@ const ItinerarySchema = z.object({
     nearby: z.array(z.object({ name: z.string(), image: z.string() }))
   }).optional(),
 });
+
 type Itinerary = z.infer<typeof ItinerarySchema>;
-type ItineraryDay = z.infer<typeof ItineraryDaySchema>;
 
 type ChatMessage = {
   type: 'user' | 'bot';
   content: string | Itinerary;
   rawItinerary?: string;
+  timestamp?: string;
 };
 
+interface VersionSnapshot {
+  version: string;
+  title: string;
+  timestamp: string;
+  itinerary: Itinerary;
+}
+
 const plannerFormSchema = z.object({
-  destination: z.string().min(3, 'Please enter a destination.'),
-  duration: z.string().min(3, 'Please enter a trip duration.'),
+  destination: z.string().min(2, 'Please enter a destination.'),
+  duration: z.string().min(2, 'Please enter a duration.'),
   budget: z.string().min(2, 'Please enter a budget.'),
   interests: z.string().min(3, 'Please list some interests.'),
 });
 
 const editFormSchema = z.object({
-  editRequest: z.string().min(5, 'Please enter a more detailed request.'),
+  editRequest: z.string().min(3, 'Please enter an edit request.'),
 });
-
-const ItineraryContent = ({ itinerary, onRequestEdit }: { itinerary: Itinerary, onRequestEdit?: (req: string) => void }) => {
-  return <ItineraryDashboard itinerary={itinerary} onRequestEdit={onRequestEdit} />;
-};
 
 export default function OnlyExplore({ initialChatId }: { initialChatId?: string }) {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(false);
+  const [progressStep, setProgressStep] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const { toast } = useToast();
 
+  // Version History State
+  const [versionHistory, setVersionHistory] = useState<VersionSnapshot[]>([]);
+  const [activeVersion, setActiveVersion] = useState<string>('Draft v1');
+
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  useEffect(() => {
-    if (searchParams.get('verified') === 'true') {
-      toast({ title: 'Success', description: 'Email verified successfully. You can now log in.' });
-      router.replace('/');
-    }
-  }, [searchParams, router, toast]);
+  const hasAutoSubmittedRef = useRef(false);
 
-  // Load initial chat if it exists
+  // Parse current active itinerary object
+  const getLatestItinerary = (): { itinerary: Itinerary | null; lastMessageIndex: number } => {
+    for (let i = chatHistory.length - 1; i >= 0; i--) {
+      if (chatHistory[i].type === 'bot' && typeof chatHistory[i].content === 'object') {
+        return { itinerary: chatHistory[i].content as Itinerary, lastMessageIndex: i };
+      }
+    }
+    return { itinerary: null, lastMessageIndex: -1 };
+  };
+
+  const currentItinerary = getLatestItinerary().itinerary;
+
+  // Auto-submit from URL search params or pre-auth intent
   useEffect(() => {
     if (status === 'loading') return;
 
     if (initialChatId && initialChatId !== currentChatId && status === 'authenticated') {
       handleSelectChat(initialChatId, false);
-    } else if (!initialChatId && searchParams.has('destination') && !isLoading && chatHistory.length === 0) {
+    } else if (!initialChatId && status === 'authenticated' && !isLoading && chatHistory.length === 0 && !hasAutoSubmittedRef.current) {
       const dest = searchParams.get('destination') || '';
-      plannerForm.setValue('destination', dest);
-      
-      // Auto submit with dummy data if not filled, or let user fill the rest? 
-      // The requirement: "The chat page should initially create a new chat and start planning."
-      // Let's just set the destination. The user can click 'Start Planning'. Wait, requirement says:
-      // "The chat page should automatically create a new chat and start planning."
-      // I will simulate form submit if we have destination but need other fields? We can just use defaults.
-      onPlannerSubmit({
-        destination: dest,
-        duration: '5 days',
-        budget: '50000',
-        interests: 'sightseeing, food'
-      });
-      // Remove the query param to prevent endless re-triggering
-      router.replace('/chat');
+      const prompt = searchParams.get('prompt') || searchParams.get('query') || '';
+
+      if (dest || prompt) {
+        hasAutoSubmittedRef.current = true;
+        const destination = dest || 'India';
+        const exactPrompt = prompt || `Plan a trip to ${destination}`;
+
+        plannerForm.setValue('destination', destination);
+        plannerForm.setValue('interests', exactPrompt);
+
+        // Immediate user message rendering (<100ms)
+        const userMsg: ChatMessage = {
+          type: "user",
+          content: exactPrompt,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        setChatHistory([userMsg]);
+
+        router.replace('/chat', { scroll: false });
+
+        onPlannerSubmit({
+          destination,
+          duration: '5 days',
+          budget: '50000',
+          interests: exactPrompt,
+          exactPrompt,
+        });
+      }
     }
   }, [initialChatId, status, searchParams]);
 
@@ -203,9 +232,9 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     resolver: zodResolver(plannerFormSchema),
     defaultValues: {
       destination: '',
-      duration: '',
-      budget: '',
-      interests: '',
+      duration: '5 days',
+      budget: '50000',
+      interests: 'Sightseeing, Food & Local Culture',
     },
   });
 
@@ -214,332 +243,118 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     defaultValues: { editRequest: '' },
   });
 
-  // Helper function to extract numbers from strings and convert to rupees
-  const extractNumberFromString = (value: any): number | undefined => {
-    return parseCurrencyValue(value);
-  };
-
-  // Enhanced JSON cleaning function
-  const cleanJsonString = (jsonStr: string): string => {
-    let cleaned = jsonStr;
-
-    // Remove any trailing commas before closing braces/brackets
-    cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
-
-    // Remove any control characters that might break JSON
-    cleaned = cleaned.replace(/[\x00-\x1F\x7F]/g, '');
-
-    // Fix any potential double quotes issues in descriptions
-    cleaned = cleaned.replace(/([^\\])\\"/g, '$1"');
-
-    // Remove any trailing characters after the last closing brace
-    const lastBrace = cleaned.lastIndexOf('}');
-    if (lastBrace !== -1) {
-      cleaned = cleaned.substring(0, lastBrace + 1);
-    }
-
-    return cleaned;
-  };
-
-  // Alternative extraction method using regex
-  const tryAlternativeJsonExtraction = (text: string, source: 'initial' | 'edit'): boolean => {
-    try {
-      // Use regex to find JSON object more precisely
-      const jsonMatch = text.match(/\{(?:[^{}]|{(?:[^{}]|{[^{}]*})*})*\}/);
-
-      if (jsonMatch && jsonMatch[0]) {
-        const cleanedJson = cleanJsonString(jsonMatch[0]);
-        const parsedData = JSON.parse(cleanedJson);
-
-        // Process the successfully parsed data
-        processValidItinerary(parsedData, source);
-        return true;
-      }
-
-      // If that fails, try to extract key sections manually
-      return tryManualExtraction(text, source);
-
-    } catch (error) {
-      console.error('Alternative extraction failed:', error);
-      return false;
-    }
-  };
-
-  // Manual extraction as last resort
-  const tryManualExtraction = (text: string, source: 'initial' | 'edit'): boolean => {
-    try {
-      const extracted: any = { days: [] };
-
-      // Extract destination
-      const destMatch = text.match(/"destination":\s*"([^"]+)"/);
-      if (destMatch) extracted.destination = destMatch[1];
-
-      // Extract duration
-      const durationMatch = text.match(/"duration":\s*(\d+)/);
-      if (durationMatch) extracted.duration = parseInt(durationMatch[1]);
-
-      // Extract budget
-      const budgetMatch = text.match(/"budget":\s*(\d+)/);
-      if (budgetMatch) extracted.budget = parseInt(budgetMatch[1]);
-
-      // Extract interests
-      const interestsMatch = text.match(/"interests":\s*\[([^\]]+)\]/);
-      if (interestsMatch) {
-        extracted.interests = interestsMatch[1].split(',').map((s: string) => s.replace(/"/g, '').trim());
-      }
-
-      // Create basic structure if we have essential data
-      if (extracted.destination) {
-        if (extracted.days.length === 0) {
-          extracted.days = [{
-            day: 1,
-            activities: [
-              { name: "Explore " + extracted.destination, description: "Start your adventure" }
-            ]
-          }];
-        }
-
-        processValidItinerary(extracted, source);
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      return false;
-    }
-  };
-
-  // Helper to process valid itinerary data
-  const processValidItinerary = (data: any, source: 'initial' | 'edit') => {
-    let finalData = data;
-
-    if (data.itinerary) {
-      finalData = typeof data.itinerary === 'string' ? JSON.parse(data.itinerary) : data.itinerary;
-    } else if (data.updatedItinerary) {
-      finalData = typeof data.updatedItinerary === 'string' ? JSON.parse(data.updatedItinerary) : data.updatedItinerary;
-    }
-
-    const transformedData = {
-      destination: finalData.destination || "Unknown Destination",
-      duration: typeof finalData.duration === 'number' ? finalData.duration : (extractNumberFromString(finalData.duration) || 7),
-      budget: typeof finalData.budget === 'number' ? finalData.budget : (extractNumberFromString(finalData.budget) || 50000),
-      interests: Array.isArray(finalData.interests)
-        ? finalData.interests
-        : (typeof finalData.interests === 'string'
-          ? finalData.interests.split(',').map((s: string) => s.trim())
-          : []),
-      days: Array.isArray(finalData.days)
-        ? finalData.days.map((day: any) => ({
-          day: typeof day.day === 'number' ? day.day : parseInt(day.day) || 1,
-          activities: Array.isArray(day.activities) ? day.activities : [],
-          cost: day.cost ? (typeof day.cost === 'number' ? day.cost : extractNumberFromString(day.cost)) : undefined
-        }))
-        : [],
-      totalCost: finalData.totalCost
-        ? (typeof finalData.totalCost === 'number' ? finalData.totalCost : extractNumberFromString(finalData.totalCost))
-        : undefined,
-      notes: finalData.notes || undefined
+  const saveVersionSnapshot = (itinerary: Itinerary, label?: string) => {
+    const nextVerNum = versionHistory.length + 1;
+    const versionTag = `Draft v${nextVerNum}`;
+    const newSnapshot: VersionSnapshot = {
+      version: versionTag,
+      title: label || `Snapshot ${nextVerNum} - ${itinerary.destination}`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      itinerary,
     };
 
-    const validationResult = ItinerarySchema.safeParse(transformedData);
-
-    if (validationResult.success) {
-      const newBotMessage: ChatMessage = {
-        type: 'bot',
-        content: validationResult.data,
-        rawItinerary: JSON.stringify(validationResult.data),
-      };
-      if (source === 'initial') {
-        setChatHistory([newBotMessage]);
-      } else {
-        setChatHistory(prev => [...prev, newBotMessage]);
-      }
-
-      toast({
-        title: 'Success!',
-        description: `Your ${finalData.destination} trip is ready!`,
-      });
-    }
+    setVersionHistory((prev) => [newSnapshot, ...prev]);
+    setActiveVersion(versionTag);
   };
 
-  const parseAndSetItinerary = (text: string, source: 'initial' | 'edit') => {
-    try {
-      console.log('Raw response text length:', text.length);
-      console.log('Raw response text:', text.substring(0, 100) + '...' + text.substring(text.length - 100)); // Show first and last 100 chars
-
-      let parsedData: any;
-      let jsonString = text.trim();
-
-      // Method 1: Find the JSON object boundaries more precisely
-      const firstBrace = jsonString.indexOf('{');
-      const lastBrace = jsonString.lastIndexOf('}');
-
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        // Extract only the JSON part, ignoring any trailing content
-        jsonString = jsonString.substring(firstBrace, lastBrace + 1);
-
-        // Clean up any potential issues
-        jsonString = cleanJsonString(jsonString);
-
-        console.log('Extracted JSON string length:', jsonString.length);
-        console.log('First 200 chars of JSON:', jsonString.substring(0, 200));
-        console.log('Last 200 chars of JSON:', jsonString.substring(jsonString.length - 200));
-
-        parsedData = JSON.parse(jsonString);
-      } else {
-        throw new Error("Could not find valid JSON boundaries in the response.");
-      }
-
-      let finalData: any;
-
-      // The AI can nest the itinerary object, so we need to find it
-      if (parsedData.itinerary) {
-        finalData = typeof parsedData.itinerary === 'string' ? JSON.parse(parsedData.itinerary) : parsedData.itinerary;
-      } else if (parsedData.updatedItinerary) {
-        finalData = typeof parsedData.updatedItinerary === 'string' ? JSON.parse(parsedData.updatedItinerary) : parsedData.updatedItinerary;
-      } else {
-        // The data is already at the root level
-        finalData = parsedData;
-      }
-
-      // Transform the data to match the expected schema
-      const transformedData = {
-        destination: finalData.destination || "Unknown Destination",
-        duration: typeof finalData.duration === 'number' ? finalData.duration : (extractNumberFromString(finalData.duration) || 7),
-        budget: typeof finalData.budget === 'number' ? finalData.budget : (extractNumberFromString(finalData.budget) || 50000),
-        interests: Array.isArray(finalData.interests)
-          ? finalData.interests
-          : (typeof finalData.interests === 'string'
-            ? finalData.interests.split(',').map((s: string) => s.trim())
-            : []),
-        days: Array.isArray(finalData.days)
-          ? finalData.days.map((day: any) => ({
-            day: typeof day.day === 'number' ? day.day : parseInt(day.day) || 1,
-            activities: Array.isArray(day.activities) ? day.activities : [],
-            cost: day.cost ? (typeof day.cost === 'number' ? day.cost : extractNumberFromString(day.cost)) : undefined
-          }))
-          : [],
-        totalCost: finalData.totalCost
-          ? (typeof finalData.totalCost === 'number' ? finalData.totalCost : extractNumberFromString(finalData.totalCost))
-          : undefined,
-        notes: finalData.notes || undefined
-      };
-
-      console.log('Transformed data:', transformedData);
-
-      const validationResult = ItinerarySchema.safeParse(transformedData);
-
-      if (validationResult.success) {
-        const newBotMessage: ChatMessage = {
-          type: 'bot',
-          content: validationResult.data,
-          rawItinerary: JSON.stringify(validationResult.data),
-        };
-        if (source === 'initial') {
-          setChatHistory([newBotMessage]);
-        } else {
-          setChatHistory(prev => [...prev, newBotMessage]);
-        }
-
-        toast({
-          title: 'Itinerary Updated!',
-          description: `Your ${finalData.destination} trip has been updated!`,
-        });
-      } else {
-        console.error('Itinerary validation error:', validationResult.error);
-        toast({
-          variant: 'destructive',
-          title: 'Could not understand the itinerary.',
-          description: 'The AI returned a plan in an unexpected format. Please try again.',
-        });
-      }
-    } catch (e) {
-      console.error('Failed to parse itinerary JSON:', e);
-      console.error('Error details:', e instanceof Error ? e.message : 'Unknown error');
-
-      // Try alternative parsing methods as backup
-      if (tryAlternativeJsonExtraction(text, source)) {
-        return; // Success with alternative method
-      }
-
-      toast({
-        variant: 'destructive',
-        title: 'Could not read the itinerary.',
-        description: 'The AI response was not in a readable format. Please try again.',
-      });
-    }
-  }
+  const handleRestoreVersion = (snapshot: VersionSnapshot) => {
+    setActiveVersion(snapshot.version);
+    const botMessage: ChatMessage = {
+      type: "bot",
+      content: snapshot.itinerary,
+      rawItinerary: JSON.stringify(snapshot.itinerary),
+      timestamp: snapshot.timestamp,
+    };
+    setChatHistory((prev) => [...prev, botMessage]);
+    toast({
+      title: `Restored ${snapshot.version}`,
+      description: `Reverted workspace state to ${snapshot.title}`,
+    });
+  };
 
   async function onPlannerSubmit(values: any) {
     setIsLoading(true);
-    setChatHistory([]);
+    setProgressStep("Analyzing destination & interests...");
+    const exactPrompt = values.exactPrompt || values.interests || (values.destination ? `Plan a trip to ${values.destination}` : "Plan a trip");
+
+    const userMessage: ChatMessage = {
+      type: "user",
+      content: exactPrompt,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setChatHistory((prev) => {
+      if (prev.length === 0 || prev[0].content !== exactPrompt) {
+        return [userMessage];
+      }
+      return prev;
+    });
 
     try {
       const plan = 'pro';
-      console.log("Sending request with values:", { ...values, plan });
+      
+      // Simulate progressive status updates
+      setTimeout(() => setProgressStep("Finding top hotels & experiences..."), 1200);
+      setTimeout(() => setProgressStep("Calculating budget & daily timeline..."), 2500);
 
       const res = await fetch("/api/itinerary/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, plan }),
+        body: JSON.stringify({ ...values, plan, interests: exactPrompt }),
       });
-      if (!res.ok) {
-        throw new Error("Failed to generate itinerary");
-      }
+
+      if (!res.ok) throw new Error("Failed to generate itinerary");
+      
       const json = await res.json();
       const result = json.success ? json.data : (json.data || json);
 
-      console.log("AI Generated Travel Data:", result);
+      if (!result) throw new Error("AI returned empty result.");
 
-      if (!result) {
-        throw new Error("AI returned empty result.");
-      }
-
-      const newBotMessage: ChatMessage = {
+      const botMessage: ChatMessage = {
         type: "bot",
-        content: result, // <-- DIRECT OBJECT
+        content: result,
         rawItinerary: JSON.stringify(result),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
-      setChatHistory([newBotMessage]);
+      setChatHistory([userMessage, botMessage]);
+      saveVersionSnapshot(result, "Initial AI Plan");
 
       if (session?.user) {
         try {
-          // Save the chat to db
           const chatRes = await fetch("/api/chats", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title: `Trip to ${result.destination || "Unknown"}` }),
+            body: JSON.stringify({ title: exactPrompt }),
           });
           const chatData = await chatRes.json();
           if (chatData._id) {
             setCurrentChatId(chatData._id);
-            // Save prompt as message
-            await fetch("/api/messages", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chatId: chatData._id, role: "user", content: `Plan a trip to ${values.destination}` })
-            });
-            // Save itinerary as message
-            await fetch("/api/messages", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chatId: chatData._id, role: "assistant", content: JSON.stringify(result) })
-            });
+            await Promise.all([
+              fetch("/api/messages", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chatId: chatData._id, role: "user", content: exactPrompt })
+              }),
+              fetch("/api/messages", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chatId: chatData._id, role: "assistant", content: JSON.stringify(result) })
+              })
+            ]);
             setRefreshKey(prev => prev + 1);
-            router.push(`/chat/${chatData._id}`);
+            router.replace(`/chat/${chatData._id}`, { scroll: false });
           }
         } catch (e) { console.error("Could not save to db", e); }
       }
 
       toast({
-        title: "Success!",
-        description: result?.destination ? `Your ${result.destination} trip is ready!` : "Your trip is ready!",
+        title: "Workspace Updated!",
+        description: `${result.destination || 'Trip'} itinerary is ready to customize.`,
       });
 
     } catch (error) {
       console.error("Error generating itinerary:", error);
-
       toast({
         variant: "destructive",
         title: "Something went wrong.",
@@ -547,224 +362,82 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
       });
     } finally {
       setIsLoading(false);
+      setProgressStep(null);
     }
   }
 
   async function onEditSubmit(values: z.infer<typeof editFormSchema>) {
-    const lastMessage = chatHistory[chatHistory.length - 1];
-    if (!lastMessage || lastMessage.type !== 'bot' || !lastMessage.rawItinerary) return;
+    const editPrompt = values.editRequest;
+    if (!editPrompt || !currentItinerary) return;
 
     setIsEditing(true);
-    const userMessage: ChatMessage = { type: 'user', content: values.editRequest };
-    setChatHistory(prev => [...prev, userMessage]);
+    setProgressStep("Re-optimizing itinerary with new preferences...");
+
+    const userMessage: ChatMessage = {
+      type: "user",
+      content: editPrompt,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setChatHistory((prev) => [...prev, userMessage]);
+    editForm.reset();
 
     try {
       const res = await fetch("/api/itinerary/edit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itinerary: lastMessage.rawItinerary, editRequest: values.editRequest }),
+        body: JSON.stringify({
+          currentItinerary,
+          editRequest: editPrompt,
+        }),
       });
-      if (!res.ok) {
-        throw new Error("Failed to edit itinerary");
-      }
+
+      if (!res.ok) throw new Error("Failed to update itinerary");
+      
       const json = await res.json();
-      const result = json.success ? json.data : (json.data || json);
-      if (result.updatedItinerary) {
-        parseAndSetItinerary(result.updatedItinerary, 'edit');
+      const updatedResult = json.success ? json.data : (json.data || json);
 
-        // Save edit to db if we have a current chat
-        if (session?.user && currentChatId) {
-          try {
-            await fetch("/api/messages", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chatId: currentChatId, role: "user", content: values.editRequest })
-            });
-            await fetch("/api/messages", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chatId: currentChatId, role: "assistant", content: result.updatedItinerary })
-            });
-            setRefreshKey(prev => prev + 1);
-          } catch (e) { console.error("Could not save edit to db", e); }
-        }
+      const botMessage: ChatMessage = {
+        type: "bot",
+        content: updatedResult,
+        rawItinerary: JSON.stringify(updatedResult),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
 
-      } else {
-        throw new Error("Received empty updated itinerary from AI.");
+      setChatHistory((prev) => [...prev, botMessage]);
+      saveVersionSnapshot(updatedResult, editPrompt);
+
+      if (currentChatId && session?.user) {
+        await Promise.all([
+          fetch("/api/messages", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chatId: currentChatId, role: "user", content: editPrompt })
+          }),
+          fetch("/api/messages", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chatId: currentChatId, role: "assistant", content: JSON.stringify(updatedResult) })
+          })
+        ]);
       }
-      editForm.reset();
-    } catch (error) {
-      console.error('Error editing itinerary:', error);
+
       toast({
-        variant: 'destructive',
-        title: 'Oops! Couldn\'t make that change.',
-        description: 'There was an issue updating your itinerary. Please rephrase your request.',
+        title: "Workspace Updated",
+        description: "Applied your edits to the live itinerary workspace.",
       });
-      // remove the user message if edit fails
-      setChatHistory(prev => prev.slice(0, prev.length - 1));
+    } catch (err) {
+      console.error("Edit failed", err);
+      toast({
+        variant: "destructive",
+        title: "Edit Failed",
+        description: "Could not apply edits right now. Please try again.",
+      });
     } finally {
       setIsEditing(false);
+      setProgressStep(null);
     }
   }
-
-  const getLatestItinerary = (): { itinerary: Itinerary | null, rawItinerary: string | null } => {
-    const lastBotMessage = [...chatHistory].reverse().find(m => m.type === 'bot');
-    if (lastBotMessage && typeof lastBotMessage.content !== 'string') {
-      return { itinerary: lastBotMessage.content, rawItinerary: lastBotMessage.rawItinerary || null };
-    }
-    return { itinerary: null, rawItinerary: null };
-  };
-
-  const handleCopyToClipboard = async () => {
-    const { itinerary } = getLatestItinerary();
-    if (!itinerary) return;
-
-    let formattedText = `Your Trip to ${itinerary.destination}\n\n`;
-    itinerary.days.forEach((day: ItineraryDay) => {
-      formattedText += `Day ${day.day}\n`;
-      const allActs = [
-        ...(day.morning || []),
-        ...(day.afternoon || []),
-        ...(day.evening || []),
-        ...(day.activities || [])
-      ];
-      allActs.forEach(activity => {
-        formattedText += `- ${activity.name}`;
-        if (activity.description) {
-          formattedText += `: ${activity.description}`;
-        }
-        formattedText += `\n`;
-      });
-      if (day.cost) {
-        formattedText += `Estimated Cost: ${formatCurrencyDisplay(day.cost)}\n`;
-      }
-      formattedText += `\n`;
-    });
-
-    if (itinerary.notes) {
-      formattedText += `Notes:\n${itinerary.notes}\n`;
-    }
-
-    try {
-      await navigator.clipboard.writeText(formattedText);
-      toast({ title: 'Itinerary copied to clipboard!' });
-    } catch (err) {
-      toast({
-        variant: 'destructive',
-        title: 'Could not copy itinerary.',
-        description: 'Your browser may not support this feature or an error occurred.',
-      });
-    }
-  };
-
-  const handleShare = async () => {
-    const { itinerary } = getLatestItinerary();
-    if (!itinerary) return;
-
-    let formattedText = `Check out my trip to ${itinerary.destination}!\n\n`;
-    itinerary.days.forEach(day => {
-      formattedText += `Day ${day.day}\n`;
-      const allActs = [
-        ...(day.morning || []),
-        ...(day.afternoon || []),
-        ...(day.evening || []),
-        ...(day.activities || [])
-      ];
-      allActs.forEach(activity => {
-        formattedText += `- ${activity.name}${activity.description ? `: ${activity.description}` : ''}\n`;
-      });
-      if (day.cost) {
-        formattedText += `Estimated Cost: ${formatCurrencyDisplay(day.cost)}\n`;
-      }
-      formattedText += `\n`;
-    });
-    if (itinerary.notes) {
-      formattedText += `Notes:\n${itinerary.notes}\n`;
-    }
-
-    const shareData = {
-      title: `My Travel Itinerary for ${itinerary.destination}`,
-      text: formattedText,
-    };
-
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-        toast({ title: 'Itinerary shared successfully!' });
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          return;
-        }
-        console.error('Error sharing itinerary:', error);
-        toast({
-          variant: "destructive",
-          title: 'Sharing failed.',
-          description: 'Could not share itinerary. Please try again.',
-        });
-      }
-    } else {
-      handleCopyToClipboard();
-    }
-  };
-
-
-  const handleDownloadPdf = async () => {
-    const { itinerary } = getLatestItinerary();
-    if (!itinerary) return;
-    try {
-      toast({ title: 'Generating PDF...', description: 'Please wait while we format your itinerary.' });
-      const res = await fetch('/api/export-trip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itinerary })
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to generate PDF');
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `OnlyExplore-Itinerary-${itinerary.destination.replace(/\s/g, '_')}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-
-      toast({ title: 'PDF Downloaded!', description: 'Your high-quality pdf itinerary has been saved.' });
-    } catch (e) {
-      console.error('Error downloading PDF', e);
-      toast({
-        variant: 'destructive',
-        title: 'Could not download PDF.',
-        description: 'An unexpected error occurred during generation.',
-      });
-    }
-  };
-
-  const ItineraryLoader = () => (
-    <Card className="w-full max-w-4xl animate-pulse">
-      <CardHeader>
-        <Skeleton className="h-8 w-3/5 rounded-md" />
-        <Skeleton className="h-5 w-2/5 rounded-md" />
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-4">
-          <Skeleton className="h-6 w-1/4 rounded-md" />
-          <Skeleton className="h-4 w-full rounded-md" />
-          <Skeleton className="h-4 w-5/6 rounded-md" />
-        </div>
-        <div className="space-y-4">
-          <Skeleton className="h-6 w-1/4 rounded-md" />
-          <Skeleton className="h-4 w-full rounded-md" />
-          <Skeleton className="h-4 w-4/6 rounded-md" />
-          <Skeleton className="h-4 w-5/6 rounded-md" />
-        </div>
-      </CardContent>
-    </Card>
-  );
 
   const handleSelectChat = async (chatId: string, navigate = true) => {
     setIsLoading(true);
@@ -775,7 +448,7 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     try {
       const res = await fetch(`/api/messages?chatId=${chatId}`);
       if (res.status === 404) {
-        toast({ variant: "destructive", title: "This is a private chat." });
+        toast({ variant: "destructive", title: "Chat not found" });
         router.push('/');
         setIsLoading(false);
         return;
@@ -788,23 +461,31 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
         let rawItinerary = undefined;
         if (m.role === 'assistant') {
           try {
-            const parsed = JSON.parse(m.content);
-            content = parsed;
+            content = JSON.parse(m.content);
             rawItinerary = m.content;
           } catch (e) {
-            // Handle raw string
+            // Keep raw string fallback
           }
         }
         return {
           type: m.role === 'user' ? 'user' : 'bot',
           content,
-          rawItinerary
+          rawItinerary,
+          timestamp: m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined,
         };
       });
+
       setChatHistory(formattedHistory);
+
+      // Save initial snapshot from history if present
+      const latestBot = formattedHistory.slice().reverse().find(m => m.type === 'bot' && typeof m.content === 'object');
+      if (latestBot && typeof latestBot.content === 'object') {
+        saveVersionSnapshot(latestBot.content as Itinerary, "Loaded Saved Trip");
+      }
+
     } catch (e) {
       console.error(e);
-      toast({ variant: "destructive", title: "Could not load trip" });
+      toast({ variant: "destructive", title: "Could not load trip history" });
     } finally {
       setIsLoading(false);
     }
@@ -813,251 +494,428 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
   const handleNewChat = () => {
     setChatHistory([]);
     setCurrentChatId(null);
+    setVersionHistory([]);
+    setActiveVersion('Draft v1');
     router.push('/chat');
   };
 
-  const renderContent = () => {
-    if (isLoading) {
-      return (
-        <div className="fullscreen-content relative w-full h-full">
-          <div className="fullscreen-bg absolute inset-0" style={{ backgroundImage: 'url(/bg_image2.png)' }} />
-          <div className="fullscreen-overlay absolute inset-0 bg-black/40 flex items-center justify-center">
-            <ItineraryLoader />
-          </div>
-        </div>
-      );
+  const handleDownloadPdf = async () => {
+    if (!currentItinerary) return;
+    try {
+      toast({ title: 'Generating PDF...', description: 'Please wait while we format your PDF.' });
+      const res = await fetch('/api/export-trip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itinerary: currentItinerary })
+      });
+
+      if (!res.ok) throw new Error('Failed to generate PDF');
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `OnlyExplore-Itinerary-${currentItinerary.destination.replace(/\s/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast({ title: 'PDF Exported!', description: 'Your PDF travel guide is ready.' });
+    } catch (e) {
+      console.error('Error downloading PDF', e);
+      toast({
+        variant: 'destructive',
+        title: 'PDF Export Failed',
+        description: 'Could not generate PDF. Opening browser print fallback.',
+      });
+      window.print();
     }
+  };
 
-    if (chatHistory.length > 0) {
-      const { itinerary } = getLatestItinerary();
-      return (
-        <div className="fullscreen-content relative w-full h-full">
-          <div className="fullscreen-bg absolute inset-0" style={{ backgroundImage: 'url(/bg_image2.png)' }} />
-          <div className="fullscreen-overlay absolute inset-0 bg-black/40 flex items-center justify-center p-4">
-            <Card className="w-full max-w-4xl shadow-2xl shadow-primary/10 flex flex-col h-[90vh] bg-white/95 overflow-hidden">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="font-headline text-3xl text-foreground">Your Trip to {itinerary?.destination || '...'}</CardTitle>
-                    <CardDescription>Here is your personalized AI-generated travel plan. Have fun!</CardDescription>
-                  </div>
-                  <TooltipProvider>
-                    <div className="flex items-center gap-2">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" onClick={handleShare}>
-                            <Share2 className="h-5 w-5 text-muted-foreground" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Share</p></TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" onClick={handleCopyToClipboard}>
-                            <Copy className="h-5 w-5 text-muted-foreground" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Copy</p></TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" onClick={handleDownloadPdf}>
-                            <Download className="h-5 w-5 text-muted-foreground" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Download PDF</p></TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <CalendarPlus className="h-5 w-5 text-muted-foreground" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Add to Calendar</p></TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </TooltipProvider>
+  const handleExportCalendar = () => {
+    if (!currentItinerary) return;
+    const icsContent = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//OnlyExplore//Trip Workspace//EN\nBEGIN:VEVENT\nSUMMARY:Trip to ${currentItinerary.destination}\nDESCRIPTION:Generated by OnlyExplore AI Workspace\nEND:VEVENT\nEND:VCALENDAR`;
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentItinerary.destination.replace(/\s/g, '_')}_Trip.ics`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast({ title: "Calendar Exported", description: ".ics calendar file saved to downloads." });
+  };
+
+  const handleShareWorkspace = () => {
+    if (!currentItinerary) return;
+    const shareUrl = window.location.href;
+    if (navigator.share) {
+      navigator.share({ title: `Trip to ${currentItinerary.destination}`, url: shareUrl });
+    } else {
+      navigator.clipboard.writeText(shareUrl);
+      toast({ title: "Link Copied", description: "Trip workspace URL copied to clipboard." });
+    }
+  };
+
+  const handleOpenGoogleMaps = () => {
+    if (!currentItinerary) return;
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(currentItinerary.destination)}`;
+    window.open(mapsUrl, '_blank');
+  };
+
+  return (
+    <div className="flex h-screen w-full bg-background text-foreground overflow-hidden font-sans">
+      {/* Persistent Left App Navigation Drawer */}
+      <Sidebar onSelectChat={(id) => handleSelectChat(id, true)} onNewChat={handleNewChat} refreshKey={refreshKey} />
+
+      {/* Main Workspace Frame */}
+      <div className="flex flex-col flex-1 h-screen overflow-hidden relative">
+        
+        {/* WORKSPACE HEADER BAR */}
+        <header className="h-16 border-b border-border bg-card/80 backdrop-blur-md px-6 flex items-center justify-between shrink-0 z-20">
+          <div className="flex items-center gap-4 overflow-x-auto hide-scrollbar">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 text-purple-700 font-semibold text-xs border border-purple-200 shrink-0">
+              <MapPin className="w-3.5 h-3.5" />
+              <span>{currentItinerary?.destination || 'New Trip Workspace'}</span>
+            </div>
+
+            {currentItinerary && (
+              <>
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium shrink-0">
+                  <CalendarDays className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{currentItinerary.days?.length || 5} Days</span>
                 </div>
-              </CardHeader>
-              <CardContent className="flex-grow overflow-y-auto custom-scrollbar p-6 pt-0">
-                <div className="space-y-4">
-                  {chatHistory.map((message, index) => {
-                    if (message.type === 'bot') {
-                      return (
-                        <div key={index} className="flex items-start gap-4">
-                          <Avatar className="border-2 border-accent">
-                            <AvatarFallback className="bg-accent text-accent-foreground">
-                              <Bot className="h-6 w-6" />
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="bg-muted rounded-lg p-4 w-full">
-                            {typeof message.content === 'string' ? <p>{message.content}</p> : <ItineraryContent itinerary={message.content} onRequestEdit={(req) => { editForm.setValue('editRequest', req); onEditSubmit(editForm.getValues()); }} />}
-                          </div>
-                        </div>
-                      )
-                    }
-                    if (message.type === 'user') {
-                      return (
-                        <div key={index} className="flex items-start gap-4 justify-end">
-                          <div className="bg-primary/20 rounded-lg p-4 max-w-[80%]">
-                            <p className="text-primary-foreground">{message.content as string}</p>
-                          </div>
-                          <Avatar>
-                            <AvatarFallback className="bg-secondary">
-                              <User className="h-6 w-6" />
-                            </AvatarFallback>
-                          </Avatar>
-                        </div>
-                      )
-                    }
-                    return null;
-                  })}
 
-                  {isEditing && (
-                    <div className="flex items-center gap-4">
-                      <Avatar className="border-2 border-accent">
-                        <AvatarFallback className="bg-accent text-accent-foreground">
-                          <Bot className="h-6 w-6" />
+                <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium shrink-0">
+                  <Wallet className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{formatCurrencyDisplay(currentItinerary.totalCost || currentItinerary.budgetBreakdown?.total || 50000)}</span>
+                </div>
+
+                <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium shrink-0">
+                  <Users className="w-3.5 h-3.5 text-slate-500" />
+                  <span>2 Travelers</span>
+                </div>
+              </>
+            )}
+
+            {/* Version History Selector */}
+            {versionHistory.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs font-medium rounded-full">
+                    <History className="w-3.5 h-3.5 text-purple-600" />
+                    <span>{activeVersion}</span>
+                    <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuLabel className="text-xs">Version Snapshots</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {versionHistory.map((snap) => (
+                    <DropdownMenuItem
+                      key={snap.version}
+                      onClick={() => handleRestoreVersion(snap)}
+                      className="flex items-center justify-between text-xs cursor-pointer"
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-semibold">{snap.version}</span>
+                        <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">{snap.title}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400">{snap.timestamp}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+
+          {/* Action Header Buttons */}
+          <div className="flex items-center gap-2 shrink-0">
+            {currentItinerary && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="bg-purple-600 hover:bg-purple-700 text-white gap-2 shadow-sm rounded-full text-xs font-semibold px-4 h-9">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Finalize Trip</span>
+                    <ChevronDown className="w-3.5 h-3.5 opacity-80" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="text-xs">Export & Share Workspace</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleDownloadPdf} className="gap-2 text-xs cursor-pointer">
+                    <FileText className="w-4 h-4 text-purple-600" />
+                    <span>Export PDF Itinerary</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportCalendar} className="gap-2 text-xs cursor-pointer">
+                    <CalendarPlus className="w-4 h-4 text-blue-600" />
+                    <span>Add to Calendar (.ics)</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleShareWorkspace} className="gap-2 text-xs cursor-pointer">
+                    <Share2 className="w-4 h-4 text-green-600" />
+                    <span>Share Workspace Link</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleOpenGoogleMaps} className="gap-2 text-xs cursor-pointer">
+                    <MapIcon className="w-4 h-4 text-amber-600" />
+                    <span>Open Google Maps Route</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </header>
+
+        {/* WORKSPACE SPLIT LAYOUT (35% Left Chat Feed / 65% Right Live Workspace) */}
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+          
+          {/* LEFT PANEL (35% Width): AI Conversation & Input Bar */}
+          <div className="w-full md:w-[35%] lg:w-[32%] border-r border-border bg-card flex flex-col h-full shrink-0 relative">
+            
+            {/* Conversation Header */}
+            <div className="p-4 border-b border-border bg-muted/30 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600">
+                  <Bot className="w-4 h-4" />
+                </div>
+                <span className="font-semibold text-sm">AI Copilot</span>
+              </div>
+              {progressStep && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 border border-purple-200 text-purple-700 rounded-full text-[11px] font-medium animate-pulse">
+                  <Sparkles className="w-3 h-3 animate-spin" />
+                  <span className="truncate max-w-[130px]">{progressStep}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Conversation Message List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar">
+              {chatHistory.length === 0 && !isLoading && (
+                <div className="flex flex-col items-center justify-center h-full text-center p-6 space-y-4">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 shadow-sm">
+                    <Compass className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-base">Plan Your Next Trip</h4>
+                    <p className="text-xs text-slate-500 mt-1 max-w-xs">
+                      Type your destination, travel budget, or interests below to build your live workspace.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {chatHistory.map((message, index) => {
+                if (message.type === 'user') {
+                  return (
+                    <div key={index} className="flex justify-end items-start gap-2.5">
+                      <div className="bg-purple-600 text-white p-3 rounded-2xl rounded-tr-sm text-xs max-w-[85%] shadow-sm leading-relaxed">
+                        <p>{message.content as string}</p>
+                        {message.timestamp && <span className="text-[9px] text-purple-200 block text-right mt-1">{message.timestamp}</span>}
+                      </div>
+                      <Avatar className="w-6 h-6 shrink-0 mt-1">
+                        <AvatarFallback className="bg-purple-100 text-purple-700 text-[10px] font-bold">YOU</AvatarFallback>
+                      </Avatar>
+                    </div>
+                  );
+                }
+
+                if (message.type === 'bot') {
+                  return (
+                    <div key={index} className="flex justify-start items-start gap-2.5">
+                      <Avatar className="w-6 h-6 shrink-0 mt-1 border border-purple-200">
+                        <AvatarFallback className="bg-purple-50 text-purple-600">
+                          <Bot className="w-3.5 h-3.5" />
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex items-center space-x-2 bg-muted p-3 rounded-lg">
-                        <Skeleton className="h-4 w-4 rounded-full bg-accent" />
-                        <Skeleton className="h-4 w-4 rounded-full bg-accent" />
-                        <Skeleton className="h-4 w-4 rounded-full bg-accent" />
-                        <p className="text-sm text-muted-foreground">Rethinking your adventure...</p>
+                      <div className="bg-muted/70 text-slate-800 p-3 rounded-2xl rounded-tl-sm text-xs max-w-[88%] border border-border leading-relaxed space-y-2">
+                        {typeof message.content === 'string' ? (
+                          <p>{message.content}</p>
+                        ) : (
+                          <div>
+                            <div className="flex items-center gap-1.5 text-purple-700 font-semibold mb-1 text-[11px]">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                              <span>Updated Live Itinerary Workspace</span>
+                            </div>
+                            <p className="text-[11px] text-slate-600">
+                              Generated personalized itinerary for <strong className="text-slate-900">{message.content.destination}</strong> with {message.content.days?.length || 5} days of activities, hotel options, and weather details.
+                            </p>
+                          </div>
+                        )}
+                        {message.timestamp && <span className="text-[9px] text-slate-400 block text-right">{message.timestamp}</span>}
                       </div>
                     </div>
-                  )}
+                  );
+                }
+                return null;
+              })}
+
+              {(isLoading || isEditing) && (
+                <div className="flex justify-start items-start gap-2.5">
+                  <Avatar className="w-6 h-6 shrink-0 mt-1 border border-purple-200">
+                    <AvatarFallback className="bg-purple-50 text-purple-600">
+                      <Bot className="w-3.5 h-3.5 animate-spin" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="bg-purple-50/70 border border-purple-100 p-3.5 rounded-2xl rounded-tl-sm text-xs text-purple-700 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-purple-600 animate-ping" />
+                    <span>{progressStep || "Crafting your travel workspace..."}</span>
+                  </div>
                 </div>
-              </CardContent>
-              <CardFooter>
+              )}
+            </div>
+
+            {/* Quick Suggestion Pills */}
+            {currentItinerary && (
+              <div className="px-4 py-2 bg-muted/20 border-t border-border flex items-center gap-1.5 overflow-x-auto hide-scrollbar shrink-0">
+                {[
+                  "Make it budget friendly",
+                  "Add 1 more day",
+                  "Suggest luxury stays",
+                  "Focus on local food"
+                ].map((sug) => (
+                  <button
+                    key={sug}
+                    onClick={() => {
+                      editForm.setValue('editRequest', sug);
+                      onEditSubmit({ editRequest: sug });
+                    }}
+                    className="px-2.5 py-1 bg-white hover:bg-purple-50 text-slate-600 hover:text-purple-700 text-[10px] font-medium rounded-full border border-slate-200 transition shrink-0"
+                  >
+                    + {sug}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Prompt Input Bar */}
+            <div className="p-3 border-t border-border bg-card shrink-0">
+              {chatHistory.length === 0 ? (
+                <Form {...plannerForm}>
+                  <form onSubmit={plannerForm.handleSubmit(onPlannerSubmit)} className="space-y-2">
+                    <div className="flex gap-2">
+                      <FormField
+                        control={plannerForm.control}
+                        name="destination"
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
+                            <FormControl>
+                              <div className="relative">
+                                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                <Input placeholder="Destination (e.g. Shimla)" className="pl-8 h-9 text-xs" {...field} />
+                              </div>
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <Button type="submit" size="sm" className="h-9 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold">
+                        Plan <ArrowRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              ) : (
                 <Form {...editForm}>
-                  <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="w-full flex items-center gap-2">
+                  <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="flex items-center gap-2">
                     <FormField
                       control={editForm.control}
                       name="editRequest"
                       render={({ field }) => (
-                        <FormItem className="flex-grow">
+                        <FormItem className="flex-1">
                           <FormControl>
                             <div className="relative">
-                              <Wand2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                              <Input placeholder="Need a change? Tell me what to edit..." className="pl-10" {...field} />
+                              <Wand2 className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-purple-600" />
+                              <Input
+                                placeholder="Refine trip (e.g. 'Add beach day' or 'Lower budget')"
+                                className="pl-9 pr-3 h-9 text-xs rounded-xl bg-background"
+                                {...field}
+                              />
                             </div>
                           </FormControl>
                         </FormItem>
                       )}
                     />
-                    <Button type="submit" size="icon" disabled={isEditing}>
-                      <SendHorizonal className="h-5 w-5" />
+                    <Button type="submit" size="icon" disabled={isEditing || isLoading} className="h-9 w-9 bg-purple-600 hover:bg-purple-700 text-white rounded-xl shrink-0">
+                      <SendHorizonal className="h-4 w-4" />
                     </Button>
                   </form>
                 </Form>
-              </CardFooter>
-            </Card>
+              )}
+            </div>
           </div>
-        </div>
-      );
-    }
 
-    return (
-      <div className="fullscreen-content relative w-full h-full">
-        <div className="fullscreen-bg absolute inset-0" style={{ backgroundImage: 'url(/bg_image2.png)' }} />
-        <div className="fullscreen-overlay absolute inset-0 bg-black/40 flex items-center justify-center p-4">
-          <Card className="w-full max-w-2xl shadow-2xl shadow-primary/10 bg-white/95">
-            <CardHeader className="text-center">
-              <div className="mx-auto bg-primary/20 p-3 rounded-full w-fit mb-4">
-                <Plane className="h-8 w-8 text-primary-foreground" />
+          {/* RIGHT PANEL (65% Width): Live Trip Workspace */}
+          <div className="flex-1 bg-background flex flex-col h-full overflow-y-auto custom-scrollbar relative p-4 md:p-6">
+            {currentItinerary ? (
+              <div className="max-w-5xl mx-auto w-full space-y-6">
+                <ItineraryDashboard
+                  itinerary={currentItinerary}
+                  onRequestEdit={(req) => {
+                    editForm.setValue('editRequest', req);
+                    onEditSubmit({ editRequest: req });
+                  }}
+                />
               </div>
-              <CardTitle className="font-headline text-3xl">Welcome to Only Explore</CardTitle>
-              <CardDescription>Your AI-powered travel planner. Let's dream up your next adventure together.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...plannerForm}>
-                <form onSubmit={plannerForm.handleSubmit(onPlannerSubmit)} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={plannerForm.control}
-                      name="destination"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Where to?</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                              <Input placeholder="e.g., Paris, France" className="pl-10" {...field} />
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={plannerForm.control}
-                      name="duration"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>How long?</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                              <Input placeholder="e.g., 7 days" className="pl-10" {...field} />
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={plannerForm.control}
-                      name="budget"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Budget</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Wallet className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                              <Input placeholder="e.g., ₹50000" className="pl-10" {...field} />
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={plannerForm.control}
-                      name="interests"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>What are you into?</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                              <Input placeholder="e.g., food, history, hiking" className="pl-10" {...field} />
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <Button type="submit" size="lg" className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg font-bold" disabled={isLoading}>
-                    {isLoading ? 'Planning...' : 'Plan My Trip!'}
-                    {!isLoading && <Plane className="ml-2 h-5 w-5" />}
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  };
+            ) : isLoading ? (
+              <div className="flex flex-col items-center justify-center h-full space-y-4 p-8 max-w-md mx-auto text-center">
+                <div className="w-12 h-12 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center animate-bounce">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <h3 className="font-bold text-lg text-slate-900">Setting up Live Workspace...</h3>
+                <p className="text-xs text-slate-500">Generating interactive itinerary timeline, hotel choices, and live weather forecast.</p>
+                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                  <div className="bg-purple-600 h-full w-2/3 animate-pulse" />
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full max-w-lg mx-auto text-center p-8 space-y-6">
+                <div className="w-16 h-16 rounded-3xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center shadow-sm">
+                  <Compass className="w-8 h-8" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold text-slate-900 tracking-tight font-headline">Live AI Trip Workspace</h2>
+                  <p className="text-xs text-slate-500 leading-relaxed max-w-sm">
+                    Enter a destination in the left copilot panel to start building your live itinerary workspace with maps, budget breakdown, and hotel recommendations.
+                  </p>
+                </div>
 
-  return (
-    <div className="flex w-full h-screen overflow-hidden bg-background">
-      <Sidebar onSelectChat={handleSelectChat} onNewChat={handleNewChat} refreshKey={refreshKey} />
-      <div className="flex-1 relative overflow-auto">
-        {renderContent()}
+                <div className="grid grid-cols-2 gap-3 w-full text-left">
+                  <div className="p-3 bg-card border border-border rounded-xl flex items-center gap-2.5">
+                    <CalendarDays className="w-4 h-4 text-purple-600 shrink-0" />
+                    <div>
+                      <h4 className="text-xs font-bold">Timeline Builder</h4>
+                      <p className="text-[10px] text-muted-foreground">Day-by-day activities</p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-card border border-border rounded-xl flex items-center gap-2.5">
+                    <Wallet className="w-4 h-4 text-green-600 shrink-0" />
+                    <div>
+                      <h4 className="text-xs font-bold">Budget Breakdown</h4>
+                      <p className="text-[10px] text-muted-foreground">Flights, stays & food</p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-card border border-border rounded-xl flex items-center gap-2.5">
+                    <MapIcon className="w-4 h-4 text-blue-600 shrink-0" />
+                    <div>
+                      <h4 className="text-xs font-bold">Smart Map</h4>
+                      <p className="text-[10px] text-muted-foreground">Interactive route pins</p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-card border border-border rounded-xl flex items-center gap-2.5">
+                    <Luggage className="w-4 h-4 text-amber-600 shrink-0" />
+                    <div>
+                      <h4 className="text-xs font-bold">Packing & Weather</h4>
+                      <p className="text-[10px] text-muted-foreground">Checklists & forecasts</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+        </div>
       </div>
     </div>
   );

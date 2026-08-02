@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { TripCard } from "./TripCard";
 import { History, Loader2 } from "lucide-react";
@@ -11,25 +11,35 @@ interface Chat {
 }
 
 export function PastTrips() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (session?.user) {
+  const fetchChats = useCallback(() => {
+    if (status === "authenticated" && session?.user) {
+      setLoading(true);
       fetch("/api/chats")
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
         .then((data) => {
           if (Array.isArray(data)) setChats(data);
-          setLoading(false);
+          else setChats([]);
         })
-        .catch(() => setLoading(false));
+        .catch(() => setChats([]))
+        .finally(() => setLoading(false));
     } else {
+      setChats([]);
       setLoading(false);
     }
-  }, [session]);
+  }, [status, session]);
 
-  if (loading) {
+  useEffect(() => {
+    fetchChats();
+  }, [fetchChats]);
+
+  if (status === "loading" || loading) {
     return (
       <div className="w-full mt-12 px-4 pb-12 flex justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />

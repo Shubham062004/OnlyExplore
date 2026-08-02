@@ -7,6 +7,9 @@ import User from "@/models/User";
 import { metrics } from "@/lib/metrics";
 import { applyRateLimit } from "@/lib/rateLimit";
 
+const isProduction = process.env.NODE_ENV === "production";
+const useSecureCookie = isProduction && process.env.NEXTAUTH_URL?.startsWith("https://");
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -106,6 +109,28 @@ export const authOptions: NextAuthOptions = {
     })
   ],
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider === "google") {
+        try {
+          await connectDB();
+          let dbUser = await User.findOne({ email: user.email });
+          if (!dbUser) {
+            dbUser = await User.create({
+              name: user.name || "Traveler",
+              email: user.email,
+              image: user.image,
+              emailVerified: true,
+              role: "user",
+            });
+          }
+          user.id = dbUser._id.toString();
+          (user as any).role = dbUser.role || "user";
+        } catch (err) {
+          console.error("Error provisioning Google user:", err);
+        }
+      }
+      return true;
+    },
     async jwt({ token, user, trigger, session }) {
       if (trigger === "update" && session) {
         if (session.name !== undefined) token.name = session.name;
@@ -118,7 +143,7 @@ export const authOptions: NextAuthOptions = {
         if (session.twoFactorMethods !== undefined) token.twoFactorMethods = session.twoFactorMethods;
       }
       if (user) {
-        token.id = user.id;
+        token.id = user.id || token.sub;
         token.role = (user as any).role || "user";
         token.plan = "pro";
         token.phone = (user as any).phone;
@@ -130,12 +155,17 @@ export const authOptions: NextAuthOptions = {
           token.picture = user.image;
         }
       }
+      // Ensure token.id is always populated from token.sub if missing
+      if (!token.id && token.sub) {
+        token.id = token.sub;
+      }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.id as string;
-        (session.user as any).role = token.role as string;
+        const userId = (token.id || token.sub) as string;
+        (session.user as any).id = userId;
+        (session.user as any).role = (token.role as string) || "user";
         (session.user as any).plan = "pro";
         (session.user as any).phone = token.phone as string | undefined;
         (session.user as any).emailVerified = token.emailVerified as boolean;
@@ -149,17 +179,26 @@ export const authOptions: NextAuthOptions = {
         }
       }
       return session;
+    },
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      else if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
     }
+  },
+  pages: {
+    signIn: "/auth/signin",
+    error: "/auth/signin",
   },
   session: { strategy: "jwt", maxAge: 24 * 60 * 60 },
   cookies: {
     sessionToken: {
-      name: process.env.NODE_ENV === "production" ? `__Secure-next-auth.session-token` : `next-auth.session-token`,
+      name: useSecureCookie ? "__Secure-next-auth.session-token" : "next-auth.session-token",
       options: {
         httpOnly: true,
-        sameSite: "strict",
+        sameSite: "lax",
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: useSecureCookie,
       },
     },
   },
