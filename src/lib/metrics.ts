@@ -52,4 +52,21 @@ export const metrics = {
       resultCount,
     });
   },
+
+  trackSocialPulse: (
+    type: "trending" | "search",
+    destination: string,
+    cacheHit: boolean,
+    durationMs: number,
+    resultCount: number
+  ) => {
+    logger.info("Social Pulse", {
+      metric: "social.pulse",
+      type,
+      destination,
+      cacheHit,
+      durationMs,
+      resultCount,
+    });
+  },
 };

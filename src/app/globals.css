@@ -2,21 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  margin: 0;
+  padding: 0;
+}
+
 body {
   font-family: 'PT Sans', sans-serif;
-  overflow: hidden; /* Prevent body scroll */
-  height: 100vh; /* Full viewport height */
+  min-height: 100vh;
   margin: 0;
   padding: 0;
   background-color: hsl(270 50% 99%);
   color: hsl(270 40% 12%);
-}
-
-html {
-  overflow: hidden; /* Prevent html scroll */
-  height: 100vh;
-  margin: 0;
-  padding: 0;
 }
 
 @layer base {

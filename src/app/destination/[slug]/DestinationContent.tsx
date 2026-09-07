@@ -35,6 +35,7 @@ import {
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { StickyNav } from "@/components/destination/StickyNav";
 import { GalleryModal, GalleryImage } from "@/components/destination/GalleryModal";
+import { SocialPulse } from "@/components/social/SocialPulse";
 import { OptimizedImage } from "@/components/ui/OptimizedImage";
 import { WeatherCard } from "@/components/ui/WeatherCard";
 import type { DestinationGuideData } from "@/services/destination.service";
@@ -451,6 +452,11 @@ export default function DestinationContent({
           <div id="weather" className="scroll-mt-24">
             <WeatherCard destination={destination} />
           </div>
+        </ErrorBoundary>
+
+        {/* 11b. Social Pulse — Loads independently, does NOT block page */}
+        <ErrorBoundary sectionName="Social Pulse">
+          <SocialPulse destination={destination} />
         </ErrorBoundary>
 
         {/* 12. Itinerary */}

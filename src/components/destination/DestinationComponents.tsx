@@ -1477,7 +1477,7 @@ export function HiddenGemsSection({ items = [] }: { items?: any[] }) {
   if (!items || items.length === 0) return null;
 
   return (
-    <div id="hidden-gems" className="space-y-8 pt-8 border-t border-border/40">
+    <div id="hidden-gems" className="space-y-8 pt-8 border-t border-border/40 scroll-mt-20">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-black uppercase tracking-[0.2em]">
@@ -1531,7 +1531,7 @@ export function LocalFoodSection({ items = [] }: { items?: any[] }) {
   if (!items || items.length === 0) return null;
 
   return (
-    <div id="food-cafes" className="space-y-8 pt-8 border-t border-border/40">
+    <div id="food-cafes" className="space-y-8 pt-8 border-t border-border/40 scroll-mt-20">
       <div className="space-y-2">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-black uppercase tracking-[0.2em]">
           <Utensils className="w-3.5 h-3.5" /> Regional Culinary Specialties
@@ -1571,7 +1571,7 @@ export function CafesNightlifeSection({ cafes = [], nightlife = [] }: { cafes?: 
   if ((!cafes || cafes.length === 0) && (!nightlife || nightlife.length === 0)) return null;
 
   return (
-    <div id="nightlife" className="space-y-8 pt-8 border-t border-border/40">
+    <div id="nightlife" className="space-y-8 pt-8 border-t border-border/40 scroll-mt-20">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
         {/* Cafes */}
@@ -1627,7 +1627,7 @@ export function LocalTransportSection({ items = [] }: { items?: any[] }) {
   if (!items || items.length === 0) return null;
 
   return (
-    <div id="transport" className="space-y-6 pt-8 border-t border-border/40">
+    <div id="transport" className="space-y-6 pt-8 border-t border-border/40 scroll-mt-20">
       <div className="space-y-1">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-sky-500/10 text-sky-600 text-[10px] font-black uppercase tracking-[0.2em]">
           <Navigation className="w-3.5 h-3.5" /> Local Mobility & Transit Guide
