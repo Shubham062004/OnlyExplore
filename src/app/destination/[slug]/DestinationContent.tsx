@@ -309,6 +309,88 @@ export default function DestinationContent({
   const heroTitle = guide?.hero?.title || destination;
   const heroDescription = guide?.hero?.description || `Adventure unscripted. Uncover the magic of ${destination}.`;
 
+  const fallbackRentals = useMemo(() => [
+    {
+      name: `${destination} City Sightseeing & Chauffeur Cab`,
+      type: "Cab",
+      cost: "₹1,400/day",
+      rating: 4.8,
+      location: destination,
+      bestFor: "Day Trips & City Sightseeing",
+      image: "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=800&auto=format&fit=crop",
+      imageQuery: `${destination} taxi cab`,
+    },
+    {
+      name: `${destination} Self-Drive Car Rental`,
+      type: "Self Drive",
+      cost: "₹2,200/day",
+      rating: 4.7,
+      location: destination,
+      bestFor: "Outstation Trips & Flexible Exploration",
+      image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=800&auto=format&fit=crop",
+      imageQuery: `${destination} self drive car`,
+    },
+    {
+      name: `${destination} City Scooter & Bike Rentals`,
+      type: "Scooter",
+      cost: "₹550/day",
+      rating: 4.9,
+      location: destination,
+      bestFor: "Heritage Lanes & Quick Commutes",
+      image: "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?q=80&w=800&auto=format&fit=crop",
+      imageQuery: `${destination} scooter bike rental`,
+    },
+  ], [destination]);
+
+  const effectiveRentals = useMemo(() => {
+    if (guide?.rentals && guide.rentals.length > 0) return guide.rentals;
+    return fallbackRentals;
+  }, [guide?.rentals, fallbackRentals]);
+
+  const fallbackActivities = useMemo(() => [
+    {
+      name: `${destination} Heritage & Cultural Exploration`,
+      description: `Explore the historical monuments, grand architectural landmarks, and rich living heritage of ${destination}.`,
+      category: "Culture",
+      season: "All-Season" as const,
+      difficulty: "Easy" as const,
+      intensity: "Low" as const,
+      imageQuery: `${destination} heritage monument`,
+      image: "https://images.unsplash.com/photo-1548013146-72479768bada?q=80&w=800&auto=format&fit=crop",
+      duration: "3 hours",
+      rating: 4.9,
+    },
+    {
+      name: `${destination} Street Food & Culinary Walk`,
+      description: `Savor the world-famous kebabs, chaats, and royal delicacies at century-old eateries across ${destination}.`,
+      category: "Food",
+      season: "All-Season" as const,
+      difficulty: "Easy" as const,
+      intensity: "Low" as const,
+      imageQuery: `${destination} street food culinary`,
+      image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop",
+      duration: "2.5 hours",
+      rating: 4.8,
+    },
+    {
+      name: `${destination} Old City Photography & Craft Trail`,
+      description: `Wander through historic lanes discovering handcrafted textiles, chikankari embroidery, and vintage alleyways.`,
+      category: "Shopping",
+      season: "All-Season" as const,
+      difficulty: "Easy" as const,
+      intensity: "Medium" as const,
+      imageQuery: `${destination} craft market`,
+      image: "https://images.unsplash.com/photo-1516483638261-f4dbaf036963?q=80&w=800&auto=format&fit=crop",
+      duration: "3 hours",
+      rating: 4.9,
+    },
+  ], [destination]);
+
+  const effectiveActivities = useMemo(() => {
+    if (guide?.activities && guide.activities.length > 0) return guide.activities;
+    return fallbackActivities;
+  }, [guide?.activities, fallbackActivities]);
+
   return (
     <div className="w-full pb-12">
       {/* 1. Hero */}
@@ -320,17 +402,19 @@ export default function DestinationContent({
         />
       </SectionLoader>
 
-      {/* 2. Sticky Navigation Bar */}
-      <StickyNav />
-
-      <div className="w-full max-w-7xl mx-auto px-4">
-
-        {/* 3. Quick Facts */}
+      {/* 2. Quick Facts - floats smoothly over bottom of Hero */}
+      <div className="w-full max-w-7xl mx-auto px-4 mb-8">
         <ErrorBoundary sectionName="Quick Facts">
           <SectionLoader loading={loading} skeleton={<QuickFactsSkeleton />}>
             {guide?.quickFacts && <QuickFacts facts={guide.quickFacts} destination={destination} />}
           </SectionLoader>
         </ErrorBoundary>
+      </div>
+
+      {/* 3. Sticky Navigation Bar */}
+      <StickyNav />
+
+      <div className="w-full max-w-7xl mx-auto px-4">
 
         {/* 4. Photo Gallery with Masonry & Filters */}
         <ErrorBoundary sectionName="Gallery">
@@ -374,9 +458,9 @@ export default function DestinationContent({
         <ErrorBoundary sectionName="Activities">
           <SectionLoader loading={loading} skeleton={<ActivitiesSkeleton />}>
             <div id="activities" className="scroll-mt-24">
-              {guide?.activities && guide.activities.length > 0 && (
+              {!loading && effectiveActivities.length > 0 && (
                 <AdventureActivities
-                  activities={guide.activities}
+                  activities={effectiveActivities}
                   destination={destination}
                   onViewDetails={handlePlaceClick}
                 />
@@ -438,9 +522,9 @@ export default function DestinationContent({
         {/* 10. Rentals */}
         <ErrorBoundary sectionName="Rentals">
           <div id="rentals" className="scroll-mt-24">
-            {!loading && guide?.rentals && guide.rentals.length > 0 && (
+            {!loading && effectiveRentals.length > 0 && (
               <RentalsSection
-                rentals={guide.rentals}
+                rentals={effectiveRentals}
                 onViewDetails={handlePlaceClick}
               />
             )}

@@ -326,7 +326,7 @@ export class DestinationService {
     // ── 1. Check Redis Cache ─────────────────────────────────────────────────
     try {
       const cached = await cacheService.get<DestinationGuideData>(redisKey);
-      if (cached) {
+      if (cached && ((cached.popularPlaces && cached.popularPlaces.length > 0) || (cached.activities && cached.activities.length > 0))) {
         console.log('⚡ Redis Cache hit for guide:', destination);
         return cached;
       }
@@ -339,12 +339,13 @@ export class DestinationService {
       await connectDB();
       const mongoCached = await DestinationCache.findOne({ destination: cacheKey });
       if (mongoCached && mongoCached.guideData) {
-        console.log('💾 MongoDB Cache hit for guide:', destination);
         const data = mongoCached.guideData as DestinationGuideData;
-        
-        // Asynchronously populate Redis cache
-        cacheService.set(redisKey, data, 30 * 60).catch(err => console.error("Redis write failed:", err));
-        return data;
+        if ((data.popularPlaces && data.popularPlaces.length > 0) || (data.activities && data.activities.length > 0)) {
+          console.log('💾 MongoDB Cache hit for guide:', destination);
+          cacheService.set(redisKey, data, 30 * 60).catch(err => console.error("Redis write failed:", err));
+          return data;
+        }
+        console.log('⚠️ Ignoring empty cached guide for:', destination);
       }
     } catch (dbError) {
       console.warn('⚠️ MongoDB cache read failed:', dbError);

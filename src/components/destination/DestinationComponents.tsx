@@ -45,7 +45,7 @@ export function DestinationSkeleton() {
 export function QuickFacts({ facts, destination }: { facts: any; destination: string }) {
   if (!facts) return null;
 
-  const altitudeStr = formatAltitude(facts.altitude);
+  const altitudeStr = formatAltitude(facts.altitude, destination);
   const tempObj = getTemperatureRange(destination, facts.temperature || facts.avgTemp);
   const locationStr = formatLocation(destination, facts.location);
 
@@ -93,7 +93,7 @@ export function QuickFacts({ facts, destination }: { facts: any; destination: st
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 -mt-12 md:-mt-16 relative z-30 px-2">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 -mt-12 md:-mt-16 relative z-10 px-2">
       {factItems.map((f, i) => (
         <div
           key={i}
@@ -103,7 +103,10 @@ export function QuickFacts({ facts, destination }: { facts: any; destination: st
             <span className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.25em] opacity-70 leading-none">
               {f.label}
             </span>
-            <span className="font-black text-lg md:text-xl text-foreground leading-none tracking-tight truncate">
+            <span 
+              className="font-black text-lg md:text-xl text-foreground leading-none tracking-tight truncate"
+              title={typeof f.value === 'string' ? f.value : undefined}
+            >
               {f.value}
             </span>
           </div>
@@ -645,7 +648,7 @@ export function AdventureActivities({
   });
 
   return (
-    <div className="space-y-12 mt-32 relative" id="activities">
+    <div className="space-y-12 mt-32 relative">
       {/* Header & Controls */}
       <div className="flex flex-col lg:flex-row justify-between items-end gap-10">
         <div className="space-y-4 max-w-2xl text-center lg:text-left">
@@ -854,7 +857,7 @@ export function StayRecommendations({
   });
 
   return (
-    <div className="space-y-12 mt-32 relative" id="stays">
+    <div className="space-y-12 mt-32 relative">
       {/* Header & Controls */}
       <div className="flex flex-col lg:flex-row justify-between items-end gap-10">
         <div className="space-y-4 max-w-2xl text-center lg:text-left">
@@ -940,7 +943,7 @@ export function ItinerarySection({
   };
 
   return (
-    <div className="space-y-12 mt-32 relative scroll-mt-32" id="itinerary">
+    <div className="space-y-12 mt-32 relative scroll-mt-32">
       <div className="flex flex-col items-center text-center space-y-4 mb-16">
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-500/10 text-indigo-500 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-indigo-500/20">
           <Calendar className="w-4 h-4" /> Smart AI Planner
@@ -1065,7 +1068,7 @@ export function RentalsSection({ rentals, onViewDetails }: { rentals: any[]; onV
   const filteredRentals = filter === 'All' ? rentals : rentals.filter(r => r.type === filter);
 
   return (
-    <div className="space-y-12 mt-32 relative scroll-mt-32" id="rentals">
+    <div className="space-y-12 mt-32 relative scroll-mt-32">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
         <div className="space-y-4 max-w-2xl">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-primary/20">

@@ -63,11 +63,20 @@ export function Sidebar({
 
   return (
     <>
+      {/* Backdrop overlay when open */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 transition-opacity duration-300 animate-in fade-in"
+          onClick={() => setIsOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Toggle Button in Layout */}
       <Button
         variant="outline"
         size="icon"
-        className={`fixed top-4 z-50 transition-all duration-300 ease-in-out backdrop-blur-lg bg-white/10 dark:bg-black/30 shadow-md border-white/20 hover:bg-white/20 dark:hover:bg-black/50 ${
+        className={`fixed top-4 z-[60] transition-all duration-300 ease-in-out backdrop-blur-lg bg-white/10 dark:bg-black/30 shadow-md border-white/20 hover:bg-white/20 dark:hover:bg-black/50 ${
           isOpen ? "left-[16.5rem]" : "left-4"
         }`}
         onClick={() => setIsOpen(!isOpen)}
@@ -77,7 +86,7 @@ export function Sidebar({
 
       <div
         className={`
-        fixed inset-y-0 left-0 z-40
+        fixed inset-y-0 left-0 z-50
         w-64 h-screen backdrop-blur-xl bg-white/80 dark:bg-zinc-950/80 border-r border-white/20 dark:border-white/10 flex flex-col overflow-hidden transition-transform duration-300 ease-in-out shadow-2xl
         ${isOpen ? "translate-x-0" : "-translate-x-full"}
       `}

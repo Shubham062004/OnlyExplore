@@ -12,6 +12,18 @@ export interface DestinationMeta {
 }
 
 export const destinationMetadata: Record<string, DestinationMeta> = {
+  lucknow: {
+    altitudeMeters: 123,
+    temp: { min: 12, max: 32 },
+    state: "Uttar Pradesh",
+    country: "India",
+  },
+  palampur: {
+    altitudeMeters: 1220,
+    temp: { min: 8, max: 28 },
+    state: "Himachal Pradesh",
+    country: "India",
+  },
   manali: {
     altitudeMeters: 2050,
     temp: { min: -2, max: 18 },
@@ -36,8 +48,32 @@ export const destinationMetadata: Record<string, DestinationMeta> = {
     state: "Ladakh",
     country: "India",
   },
+  delhi: {
+    altitudeMeters: 216,
+    temp: { min: 8, max: 40 },
+    state: "Delhi",
+    country: "India",
+  },
+  varanasi: {
+    altitudeMeters: 81,
+    temp: { min: 10, max: 39 },
+    state: "Uttar Pradesh",
+    country: "India",
+  },
+  agra: {
+    altitudeMeters: 171,
+    temp: { min: 8, max: 42 },
+    state: "Uttar Pradesh",
+    country: "India",
+  },
+  udaipur: {
+    altitudeMeters: 598,
+    temp: { min: 11, max: 38 },
+    state: "Rajasthan",
+    country: "India",
+  },
   bali: {
-    altitudeMeters: 0,
+    altitudeMeters: 15,
     temp: { min: 23, max: 31 },
     state: "Bali",
     country: "Indonesia",
@@ -60,25 +96,91 @@ export const destinationMetadata: Record<string, DestinationMeta> = {
     state: "Uttarakhand",
     country: "India",
   },
+  munnar: {
+    altitudeMeters: 1532,
+    temp: { min: 10, max: 25 },
+    state: "Kerala",
+    country: "India",
+  },
+  ooty: {
+    altitudeMeters: 2240,
+    temp: { min: 5, max: 22 },
+    state: "Tamil Nadu",
+    country: "India",
+  },
+  darjeeling: {
+    altitudeMeters: 2042,
+    temp: { min: 2, max: 19 },
+    state: "West Bengal",
+    country: "India",
+  },
+  srinagar: {
+    altitudeMeters: 1585,
+    temp: { min: -2, max: 30 },
+    state: "Jammu & Kashmir",
+    country: "India",
+  },
 };
 
 /**
  * Format altitude from meters to a string including feet.
+ * Handles numbers, strings with tildes, meters, or existing feet annotations.
  * Example: 2050 -> "2,050m (6,726 ft)"
+ * Example: "~123 meters (404 feet)" -> "123m (404 ft)"
  */
-export function formatAltitude(meters: number | string | undefined): string {
+export function formatAltitude(meters: number | string | undefined, destination?: string): string {
+  // If destination metadata exists and has altitude, check it as a backup
+  const key = destination?.toLowerCase().trim();
+  const meta = key ? destinationMetadata[key] : null;
+
   if (meters === undefined || meters === "" || meters === "Varies" || meters === "Altitude unavailable" || meters === "Currently unavailable") {
+    if (meta?.altitudeMeters) {
+      const feet = Math.round(meta.altitudeMeters * 3.28084);
+      return `${meta.altitudeMeters.toLocaleString()}m (${feet.toLocaleString()} ft)`;
+    }
     return "Currently unavailable";
   }
 
-  const m = typeof meters === "string" ? parseFloat(meters.replace(/,/g, "")) : meters;
-  if (isNaN(m) || m === 0) return "Currently unavailable";
+  if (typeof meters === "string") {
+    const cleaned = meters.replace(/^[~≈\s]+/, '').trim();
 
-  const feet = Math.round(m * 3.28084);
-  const formattedM = m.toLocaleString();
-  const formattedF = feet.toLocaleString();
+    // If it already contains meters/ft formatted nicely, clean up spaces/formatting
+    if (/\d+\s*(m|meter|meters).*\d+\s*(ft|feet)/i.test(cleaned)) {
+      // Normalize e.g. "123 meters (404 feet)" to "123m (404 ft)"
+      return cleaned
+        .replace(/meters?/gi, 'm')
+        .replace(/feet/gi, 'ft');
+    }
 
-  return `${formattedM}m (${formattedF} ft)`;
+    // Extract first number
+    const match = cleaned.match(/([\d,]+(?:\.\d+)?)/);
+    if (match) {
+      const num = parseFloat(match[1].replace(/,/g, ''));
+      if (!isNaN(num) && num > 0) {
+        const feet = Math.round(num * 3.28084);
+        return `${num.toLocaleString()}m (${feet.toLocaleString()} ft)`;
+      }
+    }
+
+    if (meta?.altitudeMeters) {
+      const feet = Math.round(meta.altitudeMeters * 3.28084);
+      return `${meta.altitudeMeters.toLocaleString()}m (${feet.toLocaleString()} ft)`;
+    }
+
+    return cleaned || "Currently unavailable";
+  }
+
+  if (typeof meters === "number" && meters > 0) {
+    const feet = Math.round(meters * 3.28084);
+    return `${meters.toLocaleString()}m (${feet.toLocaleString()} ft)`;
+  }
+
+  if (meta?.altitudeMeters) {
+    const feet = Math.round(meta.altitudeMeters * 3.28084);
+    return `${meta.altitudeMeters.toLocaleString()}m (${feet.toLocaleString()} ft)`;
+  }
+
+  return "Currently unavailable";
 }
 
 /**
@@ -129,7 +231,14 @@ export function formatLocation(destination: string, rawLocation?: string): strin
     // Reject generic placeholder patterns like "State, India" or just the destination name repeated
     const isGeneric = /^(State|Province|Region),\s*(India|Country)$/i.test(rawLocation.trim());
     if (!isGeneric) {
-      return rawLocation;
+      // Clean up regional prefixes like "Northern India, Uttar Pradesh" -> "Uttar Pradesh, India"
+      const cleaned = rawLocation
+        .replace(/^(Northern|Southern|Eastern|Western|Central)\s+India,\s*/i, '')
+        .trim();
+      if (!cleaned.toLowerCase().includes('india') && !cleaned.toLowerCase().includes(',')) {
+        return `${cleaned}, India`;
+      }
+      return cleaned;
     }
   }
 
