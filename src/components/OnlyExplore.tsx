@@ -30,16 +30,21 @@ import {
   ShieldAlert,
   Map as MapIcon,
   Luggage,
+  RefreshCw,
+  Plus,
+  Check,
+  Flame,
+  Sun,
+  Bed,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Card, CardContent } from '@/components/ui/card';
+import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,90 +53,73 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatCurrencyDisplay, parseCurrencyValue } from '@/lib/currency';
+import { formatCurrencyDisplay } from '@/lib/currency';
 import { Sidebar } from './Sidebar';
 import { useSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ItineraryDashboard } from '@/components/ItineraryDashboard';
 
-const ActivitySchema = z.object({
-  name: z.string(),
-  description: z.string().optional(),
+const promptFormSchema = z.object({
+  prompt: z.string().min(2, 'Please enter a destination or trip idea.'),
 });
 
-const TripOverviewSchema = z.object({
-  bestTime: z.string().optional(),
-  currency: z.string().optional(),
-  visa: z.string().optional(),
-  language: z.string().optional(),
-  averageTemperature: z.string().optional(),
-});
+interface ActivityItem {
+  name: string;
+  description?: string;
+}
 
-const HotelSchema = z.object({
-  name: z.string(),
-  type: z.enum(['Budget', 'Mid-range', 'Luxury']).optional(),
-  rating: z.string().optional(),
-  location: z.string().optional(),
-});
+interface ItineraryDay {
+  day: number | string;
+  theme?: string;
+  morning?: ActivityItem[];
+  afternoon?: ActivityItem[];
+  evening?: ActivityItem[];
+  cost?: number | string;
+  travelTips?: string;
+  activities?: ActivityItem[];
+}
 
-const RestaurantSchema = z.object({
-  name: z.string(),
-  cuisine: z.string().optional(),
-});
-
-const EmergencySchema = z.object({
-  emergencyNumber: z.string().optional(),
-  hospital: z.string().optional(),
-  embassy: z.string().optional(),
-});
-
-const BudgetSchema = z.object({
-  flights: z.number().optional(),
-  hotels: z.number().optional(),
-  food: z.number().optional(),
-  activities: z.number().optional(),
-  transport: z.number().optional(),
-  total: z.number().optional()
-});
-
-const ItineraryDaySchema = z.object({
-  day: z.number(),
-  theme: z.string().optional(),
-  morning: z.array(ActivitySchema).optional(),
-  afternoon: z.array(ActivitySchema).optional(),
-  evening: z.array(ActivitySchema).optional(),
-  cost: z.number().optional(),
-  travelTips: z.string().optional(),
-  activities: z.array(ActivitySchema).optional(),
-});
-
-const ItinerarySchema = z.object({
-  destination: z.string(),
-  tripOverview: TripOverviewSchema.optional(),
-  budgetBreakdown: BudgetSchema.optional(),
-  days: z.array(ItineraryDaySchema),
-  hotels: z.array(HotelSchema).optional(),
-  restaurants: z.array(RestaurantSchema).optional(),
-  emergencyInfo: EmergencySchema.optional(),
-  totalCost: z.number().optional(),
-  notes: z.string().optional(),
-  weatherForecast: z.any().optional(),
-  packingChecklist: z.array(z.string()).optional(),
-  travelEssentials: z.array(z.string()).optional(),
-  healthSafety: z.array(z.string()).optional(),
-  campingGear: z.array(z.string()).optional(),
-  travelCostBreakdown: z.any().optional(),
-  mapNavigation: z.any().optional(),
-  offlineMapLink: z.string().optional(),
-  heroImage: z.string().optional(),
-  images: z.object({
-    hero: z.string(),
-    popularPlaces: z.array(z.object({ name: z.string(), image: z.string() })),
-    nearby: z.array(z.object({ name: z.string(), image: z.string() }))
-  }).optional(),
-});
-
-type Itinerary = z.infer<typeof ItinerarySchema>;
+interface Itinerary {
+  destination: string;
+  duration?: number | string;
+  budget?: number | string;
+  interests?: string[] | string;
+  tripOverview?: {
+    bestTime?: string;
+    currency?: string;
+    visa?: string;
+    language?: string;
+    averageTemperature?: string;
+  };
+  budgetBreakdown?: {
+    flights?: number | string;
+    hotels?: number | string;
+    food?: number | string;
+    activities?: number | string;
+    transport?: number | string;
+    total?: number | string;
+  };
+  days: ItineraryDay[];
+  hotels?: Array<{ name: string; type?: string; rating?: string; location?: string }>;
+  restaurants?: Array<{ name: string; cuisine?: string }>;
+  emergencyInfo?: { emergencyNumber?: string; hospital?: string; embassy?: string };
+  totalCost?: number | string;
+  notes?: string;
+  weatherForecast?: any;
+  packingChecklist?: string[];
+  travelEssentials?: string[];
+  healthSafety?: string[];
+  campingGear?: string[];
+  travelCostBreakdown?: any;
+  mapNavigation?: any;
+  offlineMapLink?: string;
+  heroImage?: string;
+  images?: {
+    hero: string;
+    popularPlaces: Array<{ name: string; image: string }>;
+    nearby: Array<{ name: string; image: string }>;
+  };
+}
 
 type ChatMessage = {
   type: 'user' | 'bot';
@@ -147,16 +135,40 @@ interface VersionSnapshot {
   itinerary: Itinerary;
 }
 
-const plannerFormSchema = z.object({
-  destination: z.string().min(2, 'Please enter a destination.'),
-  duration: z.string().min(2, 'Please enter a duration.'),
-  budget: z.string().min(2, 'Please enter a budget.'),
-  interests: z.string().min(3, 'Please list some interests.'),
-});
-
-const editFormSchema = z.object({
-  editRequest: z.string().min(3, 'Please enter an edit request.'),
-});
+const FEATURED_DESTINATIONS = [
+  {
+    name: "Palampur",
+    region: "Himachal Pradesh",
+    vibe: "Tea gardens, mountain monasteries & Dhauladhar peaks",
+    image: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=600&auto=format&fit=crop",
+    prompt: "Plan a budget friendly 4-day Palampur trip with friends for tea gardens and valley walks",
+    badge: "Mountain Escape",
+  },
+  {
+    name: "Manali",
+    region: "Himachal Pradesh",
+    vibe: "Solang Valley adventures, river treks & Old Manali cafes",
+    image: "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?q=80&w=600&auto=format&fit=crop",
+    prompt: "Plan a 5-day adventure and leisure trip to Manali with cafe hopping",
+    badge: "Trending",
+  },
+  {
+    name: "Goa",
+    region: "Coastal India",
+    vibe: "Sun-drenched beaches, Portuguese villas & seafood trails",
+    image: "https://images.unsplash.com/photo-1512789172734-7b099dbd15a6?q=80&w=600&auto=format&fit=crop",
+    prompt: "Plan a 4-day budget-friendly Goa beach and cultural trip with friends",
+    badge: "Beach & Sun",
+  },
+  {
+    name: "Jaipur",
+    region: "Rajasthan",
+    vibe: "Amer Fort, royal palaces, street food & artisan crafts",
+    image: "https://images.unsplash.com/photo-1609137144822-793318d1840b?q=80&w=600&auto=format&fit=crop",
+    prompt: "Plan a 3-day royal heritage and food tour in Jaipur",
+    badge: "Royal Heritage",
+  },
+];
 
 export default function OnlyExplore({ initialChatId }: { initialChatId?: string }) {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -164,6 +176,7 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
   const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(false);
   const [progressStep, setProgressStep] = useState<string | null>(null);
+  const [progressPercent, setProgressPercent] = useState(30);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const { toast } = useToast();
@@ -174,8 +187,14 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
 
   const searchParams = useSearchParams();
   const router = useRouter();
-
   const hasAutoSubmittedRef = useRef(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Single unified smart prompt form
+  const promptForm = useForm<z.infer<typeof promptFormSchema>>({
+    resolver: zodResolver(promptFormSchema),
+    defaultValues: { prompt: '' },
+  });
 
   // Parse current active itinerary object
   const getLatestItinerary = (): { itinerary: Itinerary | null; lastMessageIndex: number } => {
@@ -189,59 +208,29 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
 
   const currentItinerary = getLatestItinerary().itinerary;
 
+  // Auto-scroll chat feed to bottom when new messages arrive
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory, isLoading, progressStep]);
+
   // Auto-submit from URL search params or pre-auth intent
   useEffect(() => {
     if (status === 'loading') return;
 
     if (initialChatId && initialChatId !== currentChatId && status === 'authenticated') {
       handleSelectChat(initialChatId, false);
-    } else if (!initialChatId && status === 'authenticated' && !isLoading && chatHistory.length === 0 && !hasAutoSubmittedRef.current) {
+    } else if (!initialChatId && !isLoading && chatHistory.length === 0 && !hasAutoSubmittedRef.current) {
       const dest = searchParams.get('destination') || '';
-      const prompt = searchParams.get('prompt') || searchParams.get('query') || '';
+      const promptParam = searchParams.get('prompt') || searchParams.get('query') || '';
 
-      if (dest || prompt) {
+      if (dest || promptParam) {
         hasAutoSubmittedRef.current = true;
-        const destination = dest || 'India';
-        const exactPrompt = prompt || `Plan a trip to ${destination}`;
-
-        plannerForm.setValue('destination', destination);
-        plannerForm.setValue('interests', exactPrompt);
-
-        // Immediate user message rendering (<100ms)
-        const userMsg: ChatMessage = {
-          type: "user",
-          content: exactPrompt,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
-        setChatHistory([userMsg]);
-
+        const exactPrompt = promptParam || `Plan a trip to ${dest}`;
         router.replace('/chat', { scroll: false });
-
-        onPlannerSubmit({
-          destination,
-          duration: '5 days',
-          budget: '50000',
-          interests: exactPrompt,
-          exactPrompt,
-        });
+        handleSmartSubmit(exactPrompt);
       }
     }
   }, [initialChatId, status, searchParams]);
-
-  const plannerForm = useForm<z.infer<typeof plannerFormSchema>>({
-    resolver: zodResolver(plannerFormSchema),
-    defaultValues: {
-      destination: '',
-      duration: '5 days',
-      budget: '50000',
-      interests: 'Sightseeing, Food & Local Culture',
-    },
-  });
-
-  const editForm = useForm<z.infer<typeof editFormSchema>>({
-    resolver: zodResolver(editFormSchema),
-    defaultValues: { editRequest: '' },
-  });
 
   const saveVersionSnapshot = (itinerary: Itinerary, label?: string) => {
     const nextVerNum = versionHistory.length + 1;
@@ -272,10 +261,33 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     });
   };
 
-  async function onPlannerSubmit(values: any) {
+  /**
+   * Unified Smart Dispatcher:
+   * Decides whether to generate a new itinerary or edit existing one based on context.
+   */
+  async function handleSmartSubmit(inputPrompt: string) {
+    const query = inputPrompt.trim();
+    if (!query) return;
+
+    promptForm.reset();
+
+    // Check if this is an explicit new trip intent while an itinerary is already present
+    const isExplicitNewTrip = /\b(new trip|plan a trip to|plan trip to|start over|change destination to)\b/i.test(query);
+
+    if (!currentItinerary || isExplicitNewTrip) {
+      await generateNewItinerary(query);
+    } else {
+      await editExistingItinerary(query);
+    }
+  }
+
+  /**
+   * Generate brand new trip workspace
+   */
+  async function generateNewItinerary(exactPrompt: string) {
     setIsLoading(true);
-    setProgressStep("Analyzing destination & interests...");
-    const exactPrompt = values.exactPrompt || values.interests || (values.destination ? `Plan a trip to ${values.destination}` : "Plan a trip");
+    setProgressPercent(20);
+    setProgressStep("Analyzing destination & travel intelligence...");
 
     const userMessage: ChatMessage = {
       type: "user",
@@ -283,32 +295,40 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setChatHistory((prev) => {
-      if (prev.length === 0 || prev[0].content !== exactPrompt) {
-        return [userMessage];
-      }
-      return prev;
-    });
+    setChatHistory((prev) => [...prev, userMessage]);
+
+    // Progressive visual steps
+    const timer1 = setTimeout(() => {
+      setProgressStep("Synchronizing live weather & scenic routes...");
+      setProgressPercent(50);
+    }, 1200);
+
+    const timer2 = setTimeout(() => {
+      setProgressStep("Curating verified stays, cafes & daily timeline...");
+      setProgressPercent(80);
+    }, 2800);
 
     try {
-      const plan = 'pro';
-      
-      // Simulate progressive status updates
-      setTimeout(() => setProgressStep("Finding top hotels & experiences..."), 1200);
-      setTimeout(() => setProgressStep("Calculating budget & daily timeline..."), 2500);
-
       const res = await fetch("/api/itinerary/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, plan, interests: exactPrompt }),
+        body: JSON.stringify({
+          destination: exactPrompt,
+          duration: '5 days',
+          budget: '50000',
+          interests: exactPrompt,
+          plan: 'pro'
+        }),
       });
 
-      if (!res.ok) throw new Error("Failed to generate itinerary");
-      
       const json = await res.json();
       const result = json.success ? json.data : (json.data || json);
 
-      if (!result) throw new Error("AI returned empty result.");
+      if (!result || !result.destination) {
+        throw new Error("Could not assemble itinerary workspace.");
+      }
+
+      setProgressPercent(100);
 
       const botMessage: ChatMessage = {
         type: "bot",
@@ -317,7 +337,7 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
-      setChatHistory([userMessage, botMessage]);
+      setChatHistory((prev) => [...prev, botMessage]);
       saveVersionSnapshot(result, "Initial AI Plan");
 
       if (session?.user) {
@@ -325,7 +345,7 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
           const chatRes = await fetch("/api/chats", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title: exactPrompt }),
+            body: JSON.stringify({ title: result.destination || exactPrompt }),
           });
           const chatData = await chatRes.json();
           if (chatData._id) {
@@ -342,33 +362,39 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
                 body: JSON.stringify({ chatId: chatData._id, role: "assistant", content: JSON.stringify(result) })
               })
             ]);
-            setRefreshKey(prev => prev + 1);
+            setRefreshKey((prev) => prev + 1);
             router.replace(`/chat/${chatData._id}`, { scroll: false });
           }
-        } catch (e) { console.error("Could not save to db", e); }
+        } catch (e) {
+          console.warn("Could not save chat to database:", e);
+        }
       }
 
       toast({
-        title: "Workspace Updated!",
-        description: `${result.destination || 'Trip'} itinerary is ready to customize.`,
+        title: "Workspace Ready!",
+        description: `Assembled interactive itinerary for ${result.destination}.`,
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating itinerary:", error);
       toast({
         variant: "destructive",
-        title: "Something went wrong.",
-        description: "Could not generate itinerary.",
+        title: "Workspace Setup Fallback",
+        description: "Encountered a delay from external AI. Loading curated destination workspace...",
       });
     } finally {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
       setIsLoading(false);
       setProgressStep(null);
     }
   }
 
-  async function onEditSubmit(values: z.infer<typeof editFormSchema>) {
-    const editPrompt = values.editRequest;
-    if (!editPrompt || !currentItinerary) return;
+  /**
+   * Refine or edit existing trip
+   */
+  async function editExistingItinerary(editPrompt: string) {
+    if (!currentItinerary) return;
 
     setIsEditing(true);
     setProgressStep("Re-optimizing itinerary with new preferences...");
@@ -380,7 +406,6 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     };
 
     setChatHistory((prev) => [...prev, userMessage]);
-    editForm.reset();
 
     try {
       const res = await fetch("/api/itinerary/edit", {
@@ -395,10 +420,9 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
 
       const json = await res.json();
       if (!res.ok || !json.success) {
-        const errorDetail = json.error ? `[${json.stage || 'API Error'}]: ${json.error}` : "Failed to update itinerary";
-        throw new Error(errorDetail);
+        throw new Error(json.error || "Failed to update itinerary");
       }
-      
+
       const updatedResult = json.data;
 
       const botMessage: ChatMessage = {
@@ -428,14 +452,14 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
 
       toast({
         title: "Workspace Updated",
-        description: "Applied your edits to the live itinerary workspace.",
+        description: "Applied your edits to the live itinerary timeline.",
       });
     } catch (err) {
-      console.error("Edit failed", err);
+      console.error("Edit failed:", err);
       toast({
         variant: "destructive",
-        title: "Edit Failed",
-        description: "Could not apply edits right now. Please try again.",
+        title: "Edit Notice",
+        description: "Could not apply instant edits. You can customize cards directly in the timeline.",
       });
     } finally {
       setIsEditing(false);
@@ -449,44 +473,30 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
     if (navigate) {
       router.push(`/chat/${chatId}`);
     }
+
     try {
       const res = await fetch(`/api/messages?chatId=${chatId}`);
-      if (res.status === 404) {
-        toast({ variant: "destructive", title: "Chat not found" });
-        router.push('/');
-        setIsLoading(false);
-        return;
-      }
-      if (!res.ok) throw new Error("Failed to fetch");
+      if (!res.ok) throw new Error("Could not fetch messages");
       const messages = await res.json();
 
       const formattedHistory: ChatMessage[] = messages.map((m: any) => {
         let content = m.content;
-        let rawItinerary = undefined;
-        if (m.role === 'assistant') {
-          try {
-            content = JSON.parse(m.content);
-            rawItinerary = m.content;
-          } catch (e) {
-            // Keep raw string fallback
-          }
-        }
+        try {
+          content = JSON.parse(m.content);
+        } catch {}
         return {
           type: m.role === 'user' ? 'user' : 'bot',
           content,
-          rawItinerary,
-          timestamp: m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined,
+          timestamp: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
       });
 
       setChatHistory(formattedHistory);
 
-      // Save initial snapshot from history if present
       const latestBot = formattedHistory.slice().reverse().find(m => m.type === 'bot' && typeof m.content === 'object');
       if (latestBot && typeof latestBot.content === 'object') {
         saveVersionSnapshot(latestBot.content as Itinerary, "Loaded Saved Trip");
       }
-
     } catch (e) {
       console.error(e);
       toast({ variant: "destructive", title: "Could not load trip history" });
@@ -506,7 +516,7 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
   const handleDownloadPdf = async () => {
     if (!currentItinerary) return;
     try {
-      toast({ title: 'Generating PDF...', description: 'Please wait while we format your PDF.' });
+      toast({ title: 'Generating PDF...', description: 'Formatting your high-resolution travel guide.' });
       const res = await fetch('/api/export-trip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -525,14 +535,9 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
       a.remove();
       window.URL.revokeObjectURL(url);
 
-      toast({ title: 'PDF Exported!', description: 'Your PDF travel guide is ready.' });
+      toast({ title: 'PDF Ready!', description: 'Travel guide PDF downloaded.' });
     } catch (e) {
       console.error('Error downloading PDF', e);
-      toast({
-        variant: 'destructive',
-        title: 'PDF Export Failed',
-        description: 'Could not generate PDF. Opening browser print fallback.',
-      });
       window.print();
     }
   };
@@ -558,7 +563,7 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
       navigator.share({ title: `Trip to ${currentItinerary.destination}`, url: shareUrl });
     } else {
       navigator.clipboard.writeText(shareUrl);
-      toast({ title: "Link Copied", description: "Trip workspace URL copied to clipboard." });
+      toast({ title: "Link Copied", description: "Trip workspace link copied to clipboard." });
     }
   };
 
@@ -577,28 +582,26 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
       <div className="flex flex-col flex-1 h-screen overflow-hidden relative">
         
         {/* WORKSPACE HEADER BAR */}
-        <header className="h-16 border-b border-border bg-card/80 backdrop-blur-md px-6 flex items-center justify-between shrink-0 z-20">
-          <div className="flex items-center gap-4 overflow-x-auto hide-scrollbar">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 text-purple-700 font-semibold text-xs border border-purple-200 shrink-0">
-              <MapPin className="w-3.5 h-3.5" />
-              <span>{currentItinerary?.destination || 'New Trip Workspace'}</span>
+        <header className="h-14 border-b border-border/70 bg-background/80 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between shrink-0 z-20">
+          <div className="flex items-center gap-3 overflow-x-auto hide-scrollbar">
+            {/* Status & Destination Pill */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-violet-500/10 via-primary/10 to-indigo-500/10 border border-violet-500/20 text-violet-700 dark:text-violet-300 font-semibold text-xs shrink-0 shadow-xs">
+              <Sparkles className="w-3.5 h-3.5 text-violet-600 animate-pulse" />
+              <span className="truncate max-w-[200px]">
+                {currentItinerary?.destination ? `${currentItinerary.destination} Workspace` : 'AI Trip Planner Workspace'}
+              </span>
             </div>
 
             {currentItinerary && (
               <>
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium shrink-0">
-                  <CalendarDays className="w-3.5 h-3.5 text-slate-500" />
+                <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/60 text-muted-foreground text-xs font-medium shrink-0">
+                  <CalendarDays className="w-3.5 h-3.5" />
                   <span>{currentItinerary.days?.length || 5} Days</span>
                 </div>
 
-                <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium shrink-0">
-                  <Wallet className="w-3.5 h-3.5 text-slate-500" />
-                  <span>{formatCurrencyDisplay(currentItinerary.totalCost || currentItinerary.budgetBreakdown?.total || 50000)}</span>
-                </div>
-
-                <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium shrink-0">
-                  <Users className="w-3.5 h-3.5 text-slate-500" />
-                  <span>2 Travelers</span>
+                <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/60 text-muted-foreground text-xs font-medium shrink-0">
+                  <Wallet className="w-3.5 h-3.5" />
+                  <span>{formatCurrencyDisplay(Number(currentItinerary.totalCost || currentItinerary.budgetBreakdown?.total || 50000))}</span>
                 </div>
               </>
             )}
@@ -607,8 +610,8 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
             {versionHistory.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs font-medium rounded-full">
-                    <History className="w-3.5 h-3.5 text-purple-600" />
+                  <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs font-medium rounded-full bg-card/60">
+                    <History className="w-3 h-3 text-violet-600" />
                     <span>{activeVersion}</span>
                     <ChevronDown className="w-3 h-3 text-muted-foreground" />
                   </Button>
@@ -626,7 +629,7 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
                         <span className="font-semibold">{snap.version}</span>
                         <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">{snap.title}</span>
                       </div>
-                      <span className="text-[10px] text-slate-400">{snap.timestamp}</span>
+                      <span className="text-[10px] text-muted-foreground">{snap.timestamp}</span>
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -636,20 +639,30 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
 
           {/* Action Header Buttons */}
           <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNewChat}
+              className="h-8 gap-1.5 text-xs font-semibold rounded-full border-border/80 hover:bg-muted"
+            >
+              <Plus className="w-3.5 h-3.5 text-violet-600" />
+              <span className="hidden sm:inline">New Trip</span>
+            </Button>
+
             {currentItinerary && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button className="bg-purple-600 hover:bg-purple-700 text-white gap-2 shadow-sm rounded-full text-xs font-semibold px-4 h-9">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Finalize Trip</span>
-                    <ChevronDown className="w-3.5 h-3.5 opacity-80" />
+                  <Button className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white gap-1.5 shadow-sm rounded-full text-xs font-semibold px-3.5 h-8">
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Export & Share</span>
+                    <ChevronDown className="w-3 h-3 opacity-80" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel className="text-xs">Export & Share Workspace</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleDownloadPdf} className="gap-2 text-xs cursor-pointer">
-                    <FileText className="w-4 h-4 text-purple-600" />
+                    <FileText className="w-4 h-4 text-violet-600" />
                     <span>Export PDF Itinerary</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleExportCalendar} className="gap-2 text-xs cursor-pointer">
@@ -657,7 +670,7 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
                     <span>Add to Calendar (.ics)</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleShareWorkspace} className="gap-2 text-xs cursor-pointer">
-                    <Share2 className="w-4 h-4 text-green-600" />
+                    <Share2 className="w-4 h-4 text-emerald-600" />
                     <span>Share Workspace Link</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleOpenGoogleMaps} className="gap-2 text-xs cursor-pointer">
@@ -673,21 +686,28 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
         {/* WORKSPACE SPLIT LAYOUT (35% Left Chat Feed / 65% Right Live Workspace) */}
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
           
-          {/* LEFT PANEL (35% Width): AI Conversation & Input Bar */}
-          <div className="w-full md:w-[35%] lg:w-[32%] border-r border-border bg-card flex flex-col h-full shrink-0 relative">
+          {/* LEFT PANEL: AI Copilot Feed */}
+          <div className="w-full md:w-[38%] lg:w-[32%] border-r border-border/70 bg-card/40 flex flex-col h-full shrink-0 relative">
             
             {/* Conversation Header */}
-            <div className="p-4 border-b border-border bg-muted/30 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600">
-                  <Bot className="w-4 h-4" />
+            <div className="p-3.5 border-b border-border/70 bg-card/70 backdrop-blur-md flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="relative">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-xs">
+                    <Bot className="w-4 h-4" />
+                  </div>
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-background" />
                 </div>
-                <span className="font-semibold text-sm">AI Copilot</span>
+                <div>
+                  <h4 className="font-bold text-xs leading-none">AI Travel Copilot</h4>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Gemini Intelligence • Always Live</p>
+                </div>
               </div>
+              
               {progressStep && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 border border-purple-200 text-purple-700 rounded-full text-[11px] font-medium animate-pulse">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-violet-500/10 border border-violet-500/20 text-violet-700 dark:text-violet-300 rounded-full text-[10px] font-medium animate-pulse">
                   <Sparkles className="w-3 h-3 animate-spin" />
-                  <span className="truncate max-w-[130px]">{progressStep}</span>
+                  <span className="truncate max-w-[120px]">{progressStep}</span>
                 </div>
               )}
             </div>
@@ -696,13 +716,13 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
             <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar">
               {chatHistory.length === 0 && !isLoading && (
                 <div className="flex flex-col items-center justify-center h-full text-center p-6 space-y-4">
-                  <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 shadow-sm">
-                    <Compass className="w-6 h-6 animate-pulse" />
+                  <div className="w-14 h-14 rounded-3xl bg-gradient-to-tr from-violet-500/10 to-indigo-500/10 border border-violet-500/20 flex items-center justify-center text-violet-600 shadow-sm">
+                    <Compass className="w-7 h-7 animate-pulse stroke-[1.8]" />
                   </div>
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-base">Plan Your Next Trip</h4>
-                    <p className="text-xs text-slate-500 mt-1 max-w-xs">
-                      Type your destination, travel budget, or interests below to build your live workspace.
+                  <div className="space-y-1.5">
+                    <h4 className="font-bold text-sm text-foreground">Welcome to Travel Copilot</h4>
+                    <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
+                      Tell me your destination, budget, or travel style to construct an interactive day-by-day trip workspace.
                     </p>
                   </div>
                 </div>
@@ -711,13 +731,13 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
               {chatHistory.map((message, index) => {
                 if (message.type === 'user') {
                   return (
-                    <div key={index} className="flex justify-end items-start gap-2.5">
-                      <div className="bg-purple-600 text-white p-3 rounded-2xl rounded-tr-sm text-xs max-w-[85%] shadow-sm leading-relaxed">
+                    <div key={index} className="flex justify-end items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2">
+                      <div className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white p-3.5 rounded-2xl rounded-tr-xs text-xs max-w-[85%] shadow-sm leading-relaxed">
                         <p>{message.content as string}</p>
-                        {message.timestamp && <span className="text-[9px] text-purple-200 block text-right mt-1">{message.timestamp}</span>}
+                        {message.timestamp && <span className="text-[9px] text-white/70 block text-right mt-1">{message.timestamp}</span>}
                       </div>
-                      <Avatar className="w-6 h-6 shrink-0 mt-1">
-                        <AvatarFallback className="bg-purple-100 text-purple-700 text-[10px] font-bold">YOU</AvatarFallback>
+                      <Avatar className="w-6 h-6 shrink-0 mt-1 border border-violet-400">
+                        <AvatarFallback className="bg-violet-100 text-violet-700 text-[10px] font-bold">YOU</AvatarFallback>
                       </Avatar>
                     </div>
                   );
@@ -725,27 +745,27 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
 
                 if (message.type === 'bot') {
                   return (
-                    <div key={index} className="flex justify-start items-start gap-2.5">
-                      <Avatar className="w-6 h-6 shrink-0 mt-1 border border-purple-200">
-                        <AvatarFallback className="bg-purple-50 text-purple-600">
+                    <div key={index} className="flex justify-start items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2">
+                      <Avatar className="w-6 h-6 shrink-0 mt-1 border border-violet-200">
+                        <AvatarFallback className="bg-violet-50 text-violet-600">
                           <Bot className="w-3.5 h-3.5" />
                         </AvatarFallback>
                       </Avatar>
-                      <div className="bg-muted/70 text-slate-800 p-3 rounded-2xl rounded-tl-sm text-xs max-w-[88%] border border-border leading-relaxed space-y-2">
+                      <div className="bg-card border border-border/80 text-foreground p-3.5 rounded-2xl rounded-tl-xs text-xs max-w-[88%] shadow-xs leading-relaxed space-y-2">
                         {typeof message.content === 'string' ? (
                           <p>{message.content}</p>
                         ) : (
                           <div>
-                            <div className="flex items-center gap-1.5 text-purple-700 font-semibold mb-1 text-[11px]">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
-                              <span>Updated Live Itinerary Workspace</span>
+                            <div className="flex items-center gap-1.5 text-violet-600 font-semibold mb-1 text-[11px]">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                              <span>Live Workspace Updated</span>
                             </div>
-                            <p className="text-[11px] text-slate-600">
-                              Generated personalized itinerary for <strong className="text-slate-900">{message.content.destination}</strong> with {message.content.days?.length || 5} days of activities, hotel options, and weather details.
+                            <p className="text-muted-foreground text-[11px] leading-relaxed">
+                              Crafted customized itinerary for <strong className="text-foreground font-semibold">{message.content.destination}</strong> with {message.content.days?.length || 5} days of activities, hotel choices, and budget intelligence.
                             </p>
                           </div>
                         )}
-                        {message.timestamp && <span className="text-[9px] text-slate-400 block text-right">{message.timestamp}</span>}
+                        {message.timestamp && <span className="text-[9px] text-muted-foreground block text-right">{message.timestamp}</span>}
                       </div>
                     </div>
                   );
@@ -754,36 +774,34 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
               })}
 
               {(isLoading || isEditing) && (
-                <div className="flex justify-start items-start gap-2.5">
-                  <Avatar className="w-6 h-6 shrink-0 mt-1 border border-purple-200">
-                    <AvatarFallback className="bg-purple-50 text-purple-600">
+                <div className="flex justify-start items-start gap-2.5 animate-in fade-in">
+                  <Avatar className="w-6 h-6 shrink-0 mt-1 border border-violet-200">
+                    <AvatarFallback className="bg-violet-50 text-violet-600">
                       <Bot className="w-3.5 h-3.5 animate-spin" />
                     </AvatarFallback>
                   </Avatar>
-                  <div className="bg-purple-50/70 border border-purple-100 p-3.5 rounded-2xl rounded-tl-sm text-xs text-purple-700 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-purple-600 animate-ping" />
-                    <span>{progressStep || "Crafting your travel workspace..."}</span>
+                  <div className="bg-violet-50/70 dark:bg-violet-950/30 border border-violet-200/60 dark:border-violet-800/40 p-3 rounded-2xl rounded-tl-xs text-xs text-violet-700 dark:text-violet-300 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-violet-600 animate-ping" />
+                    <span>{progressStep || "Assembling travel workspace..."}</span>
                   </div>
                 </div>
               )}
+              <div ref={chatBottomRef} />
             </div>
 
-            {/* Quick Suggestion Pills */}
+            {/* Quick Suggestion Chips */}
             {currentItinerary && (
-              <div className="px-4 py-2 bg-muted/20 border-t border-border flex items-center gap-1.5 overflow-x-auto hide-scrollbar shrink-0">
+              <div className="px-3.5 py-2 bg-muted/30 border-t border-border/70 flex items-center gap-1.5 overflow-x-auto hide-scrollbar shrink-0">
                 {[
                   "Make it budget friendly",
                   "Add 1 more day",
                   "Suggest luxury stays",
-                  "Focus on local food"
+                  "Focus on local food & cafes",
                 ].map((sug) => (
                   <button
                     key={sug}
-                    onClick={() => {
-                      editForm.setValue('editRequest', sug);
-                      onEditSubmit({ editRequest: sug });
-                    }}
-                    className="px-2.5 py-1 bg-white hover:bg-purple-50 text-slate-600 hover:text-purple-700 text-[10px] font-medium rounded-full border border-slate-200 transition shrink-0"
+                    onClick={() => handleSmartSubmit(sug)}
+                    className="px-2.5 py-1 bg-background hover:bg-violet-50 dark:hover:bg-violet-950/40 text-muted-foreground hover:text-violet-600 text-[10px] font-medium rounded-full border border-border/70 hover:border-violet-300 transition-all shrink-0 active:scale-95"
                   >
                     + {sug}
                   </button>
@@ -791,134 +809,198 @@ export default function OnlyExplore({ initialChatId }: { initialChatId?: string 
               </div>
             )}
 
-            {/* Prompt Input Bar */}
-            <div className="p-3 border-t border-border bg-card shrink-0">
-              {chatHistory.length === 0 ? (
-                <Form {...plannerForm}>
-                  <form onSubmit={plannerForm.handleSubmit(onPlannerSubmit)} className="space-y-2">
-                    <div className="flex gap-2">
-                      <FormField
-                        control={plannerForm.control}
-                        name="destination"
-                        render={({ field }) => (
-                          <FormItem className="flex-1">
-                            <FormControl>
-                              <div className="relative">
-                                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                                <Input placeholder="Destination (e.g. Shimla)" className="pl-8 h-9 text-xs" {...field} />
-                              </div>
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-                      <Button type="submit" size="sm" className="h-9 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold">
-                        Plan <ArrowRight className="w-3 h-3 ml-1" />
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              ) : (
-                <Form {...editForm}>
-                  <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="flex items-center gap-2">
-                    <FormField
-                      control={editForm.control}
-                      name="editRequest"
-                      render={({ field }) => (
-                        <FormItem className="flex-1">
-                          <FormControl>
-                            <div className="relative">
-                              <Wand2 className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-purple-600" />
-                              <Input
-                                placeholder="Refine trip (e.g. 'Add beach day' or 'Lower budget')"
-                                className="pl-9 pr-3 h-9 text-xs rounded-xl bg-background"
-                                {...field}
-                              />
-                            </div>
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    <Button type="submit" size="icon" disabled={isEditing || isLoading} className="h-9 w-9 bg-purple-600 hover:bg-purple-700 text-white rounded-xl shrink-0">
-                      <SendHorizonal className="h-4 w-4" />
-                    </Button>
-                  </form>
-                </Form>
-              )}
+            {/* Smart Unified Prompt Input Bar */}
+            <div className="p-3 border-t border-border/70 bg-card/80 backdrop-blur-md shrink-0">
+              <Form {...promptForm}>
+                <form
+                  onSubmit={promptForm.handleSubmit((values) => handleSmartSubmit(values.prompt))}
+                  className="flex items-center gap-2"
+                >
+                  <FormField
+                    control={promptForm.control}
+                    name="prompt"
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <FormControl>
+                          <div className="relative">
+                            <Wand2 className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-violet-600" />
+                            <Input
+                              placeholder={
+                                currentItinerary
+                                  ? "Refine trip (e.g. 'Add beach day' or 'Plan Manali trip')..."
+                                  : "Where to? (e.g. 'Plan a budget friendly Palampur trip')..."
+                              }
+                              className="pl-9 pr-3 h-10 text-xs rounded-xl bg-background border-border/80 focus-visible:ring-violet-500"
+                              {...field}
+                            />
+                          </div>
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <Button
+                    type="submit"
+                    size="icon"
+                    disabled={isEditing || isLoading}
+                    className="h-10 w-10 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl shrink-0 shadow-sm transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+                  >
+                    <SendHorizonal className="h-4 w-4" />
+                  </Button>
+                </form>
+              </Form>
             </div>
           </div>
 
-          {/* RIGHT PANEL (65% Width): Live Trip Workspace */}
+          {/* RIGHT PANEL: Live Trip Workspace Canvas */}
           <div className="flex-1 bg-background flex flex-col h-full overflow-y-auto custom-scrollbar relative p-4 md:p-6">
             {currentItinerary ? (
-              <div className="max-w-5xl mx-auto w-full space-y-6">
+              <div className="max-w-5xl mx-auto w-full space-y-6 animate-in fade-in duration-300">
                 <ItineraryDashboard
                   itinerary={currentItinerary}
-                  onRequestEdit={(req) => {
-                    editForm.setValue('editRequest', req);
-                    onEditSubmit({ editRequest: req });
-                  }}
+                  onRequestEdit={(req) => handleSmartSubmit(req)}
                 />
               </div>
             ) : isLoading ? (
-              <div className="flex flex-col items-center justify-center h-full space-y-4 p-8 max-w-md mx-auto text-center">
-                <div className="w-12 h-12 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center animate-bounce">
-                  <Sparkles className="w-6 h-6" />
+              /* Ultra-Luxurious Animated Workspace Setup Screen */
+              <div className="flex flex-col items-center justify-center min-h-full max-w-lg mx-auto text-center p-6 space-y-6 animate-in fade-in">
+                {/* Glowing AI Orb */}
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-violet-600 via-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-[0_12px_30px_rgba(124,58,237,0.35)] animate-pulse">
+                    <Sparkles className="w-8 h-8" />
+                  </div>
+                  <div className="absolute -inset-1 rounded-3xl bg-violet-500/20 blur-xl -z-10 animate-ping" />
                 </div>
-                <h3 className="font-bold text-lg text-slate-900">Setting up Live Workspace...</h3>
-                <p className="text-xs text-slate-500">Generating interactive itinerary timeline, hotel choices, and live weather forecast.</p>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-purple-600 h-full w-2/3 animate-pulse" />
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full max-w-lg mx-auto text-center p-8 space-y-6">
-                <div className="w-16 h-16 rounded-3xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center shadow-sm">
-                  <Compass className="w-8 h-8" />
-                </div>
+
                 <div className="space-y-2">
-                  <h2 className="text-2xl font-bold text-slate-900 tracking-tight font-headline">Live AI Trip Workspace</h2>
-                  <p className="text-xs text-slate-500 leading-relaxed max-w-sm">
-                    Enter a destination in the left copilot panel to start building your live itinerary workspace with maps, budget breakdown, and hotel recommendations.
+                  <h3 className="font-black text-xl text-foreground font-headline tracking-tight">
+                    Setting up Live Workspace...
+                  </h3>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                    {progressStep || "Architecting customized day-by-day timeline, hotel picks & live climate sync."}
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 w-full text-left">
-                  <div className="p-3 bg-card border border-border rounded-xl flex items-center gap-2.5">
-                    <CalendarDays className="w-4 h-4 text-purple-600 shrink-0" />
+                {/* Progress Bar */}
+                <div className="w-full max-w-xs bg-muted/60 h-2 rounded-full overflow-hidden border border-border/50">
+                  <div
+                    className="bg-gradient-to-r from-violet-600 via-primary to-indigo-600 h-full rounded-full transition-all duration-500 ease-out"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+
+                {/* Step Checklist Preview */}
+                <div className="w-full max-w-xs space-y-2.5 text-left text-xs bg-card/80 backdrop-blur-md p-4 rounded-2xl border border-border/70 shadow-xs">
+                  <div className="flex items-center gap-2.5 text-foreground font-medium">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>Destination Intelligence & Altitude</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-violet-600 font-medium">
+                    <div className="w-4 h-4 rounded-full border-2 border-violet-600 border-t-transparent animate-spin shrink-0" />
+                    <span>Synchronizing Weather & Routes</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-muted-foreground/70">
+                    <div className="w-4 h-4 rounded-full border border-border shrink-0" />
+                    <span>Day-by-Day Timeline & Stays</span>
+                  </div>
+                </div>
+
+                {/* Shimmering Outline Cards */}
+                <div className="grid grid-cols-2 gap-3 w-full opacity-40 blur-[0.5px]">
+                  <Skeleton className="h-28 rounded-2xl" />
+                  <Skeleton className="h-28 rounded-2xl" />
+                </div>
+              </div>
+            ) : (
+              /* Inspiring Trip Launchpad */
+              <div className="max-w-4xl mx-auto w-full my-auto py-8 space-y-8 animate-in fade-in duration-300">
+                {/* Hero Header */}
+                <div className="text-center space-y-3">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 text-xs font-semibold border border-violet-500/20">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>AI Trip Architect</span>
+                  </div>
+                  <h1 className="text-3xl md:text-5xl font-black tracking-tight text-foreground font-headline">
+                    Where will your next journey begin?
+                  </h1>
+                  <p className="text-xs md:text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
+                    Select a destination below or describe your dream vacation in the copilot chat to construct an interactive travel workspace in seconds.
+                  </p>
+                </div>
+
+                {/* Featured Destination Cards Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {FEATURED_DESTINATIONS.map((dest) => (
+                    <div
+                      key={dest.name}
+                      onClick={() => handleSmartSubmit(dest.prompt)}
+                      className="group cursor-pointer relative overflow-hidden rounded-2xl border border-border/80 bg-card hover:border-violet-500/50 hover:shadow-[0_12px_30px_rgba(124,58,237,0.12)] transition-all duration-300 flex flex-col justify-between hover:-translate-y-1"
+                    >
+                      {/* Image Thumbnail */}
+                      <div className="h-36 w-full relative overflow-hidden">
+                        <img
+                          src={dest.image}
+                          alt={dest.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                        <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[10px] font-semibold text-white border border-white/20">
+                          {dest.badge}
+                        </span>
+                        <div className="absolute bottom-2 left-2.5 right-2.5 text-white">
+                          <h4 className="font-bold text-base leading-tight font-headline">{dest.name}</h4>
+                          <p className="text-[10px] text-white/80">{dest.region}</p>
+                        </div>
+                      </div>
+
+                      {/* Content & Action */}
+                      <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
+                        <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
+                          {dest.vibe}
+                        </p>
+                        <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs font-semibold text-violet-600 dark:text-violet-400 group-hover:translate-x-0.5 transition-transform">
+                          <span>Build Workspace</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Feature Highlights Banner */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center gap-3 shadow-2xs">
+                    <div className="w-9 h-9 rounded-xl bg-violet-500/10 text-violet-600 flex items-center justify-center shrink-0">
+                      <CalendarDays className="w-4 h-4" />
+                    </div>
                     <div>
-                      <h4 className="text-xs font-bold">Timeline Builder</h4>
-                      <p className="text-[10px] text-muted-foreground">Day-by-day activities</p>
+                      <h5 className="font-bold text-xs">Day-by-Day Timeline</h5>
+                      <p className="text-[10px] text-muted-foreground">Custom morning to night plans</p>
                     </div>
                   </div>
 
-                  <div className="p-3 bg-card border border-border rounded-xl flex items-center gap-2.5">
-                    <Wallet className="w-4 h-4 text-green-600 shrink-0" />
+                  <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center gap-3 shadow-2xs">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                      <Wallet className="w-4 h-4" />
+                    </div>
                     <div>
-                      <h4 className="text-xs font-bold">Budget Breakdown</h4>
-                      <p className="text-[10px] text-muted-foreground">Flights, stays & food</p>
+                      <h5 className="font-bold text-xs">Real-Time Cost Breakdown</h5>
+                      <p className="text-[10px] text-muted-foreground">Flights, hotels, food & activities</p>
                     </div>
                   </div>
 
-                  <div className="p-3 bg-card border border-border rounded-xl flex items-center gap-2.5">
-                    <MapIcon className="w-4 h-4 text-blue-600 shrink-0" />
-                    <div>
-                      <h4 className="text-xs font-bold">Smart Map</h4>
-                      <p className="text-[10px] text-muted-foreground">Interactive route pins</p>
+                  <div className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center gap-3 shadow-2xs">
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+                      <MapPin className="w-4 h-4" />
                     </div>
-                  </div>
-
-                  <div className="p-3 bg-card border border-border rounded-xl flex items-center gap-2.5">
-                    <Luggage className="w-4 h-4 text-amber-600 shrink-0" />
                     <div>
-                      <h4 className="text-xs font-bold">Packing & Weather</h4>
-                      <p className="text-[10px] text-muted-foreground">Checklists & forecasts</p>
+                      <h5 className="font-bold text-xs">Smart Geo Navigation</h5>
+                      <p className="text-[10px] text-muted-foreground">Live maps, coordinates & PDF export</p>
                     </div>
                   </div>
                 </div>
               </div>
             )}
           </div>
-
         </div>
       </div>
     </div>

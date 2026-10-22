@@ -5,10 +5,12 @@ export interface Coordinates {
 
 export async function getCoordinates(location: string): Promise<Coordinates | null> {
   const token = process.env.MAPBOX_ACCESS_TOKEN;
-  if (!token) return null;
+  if (!token || token.includes("dummy") || token.length < 15) return null;
 
   try {
-    const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(location)}.json?access_token=${token}`);
+    const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(location)}.json?access_token=${token}`, {
+      signal: AbortSignal.timeout(4000)
+    });
     if (!res.ok) return null;
     const data = await res.json();
     if (data.features && data.features.length > 0) {
@@ -16,10 +18,11 @@ export async function getCoordinates(location: string): Promise<Coordinates | nu
       return { lat, lng };
     }
   } catch (error) {
-    console.error("Mapbox geocoding error:", error);
+    console.warn("Mapbox geocoding skipped or timed out:", error);
   }
   return null;
 }
+
 
 export async function getDistance(origin: string, destination: string): Promise<number | null> {
   const token = process.env.MAPBOX_ACCESS_TOKEN;

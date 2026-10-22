@@ -52,21 +52,21 @@ const EmergencySchema = z.object({
 });
 
 const BudgetSchema = z.object({
-  flights: z.number().optional(),
-  hotels: z.number().optional(),
-  food: z.number().optional(),
-  activities: z.number().optional(),
-  transport: z.number().optional(),
-  total: z.number().optional()
+  flights: z.union([z.number(), z.string()]).optional(),
+  hotels: z.union([z.number(), z.string()]).optional(),
+  food: z.union([z.number(), z.string()]).optional(),
+  activities: z.union([z.number(), z.string()]).optional(),
+  transport: z.union([z.number(), z.string()]).optional(),
+  total: z.union([z.number(), z.string()]).optional()
 });
 
 const ItineraryDaySchema = z.object({
-  day: z.number(),
+  day: z.union([z.number(), z.string()]),
   theme: z.string().optional(),
   morning: z.array(z.object({ name: z.string(), description: z.string().optional() })).optional(),
   afternoon: z.array(z.object({ name: z.string(), description: z.string().optional() })).optional(),
   evening: z.array(z.object({ name: z.string(), description: z.string().optional() })).optional(),
-  cost: z.number().optional(),
+  cost: z.union([z.number(), z.string()]).optional(),
   travelTips: z.string().optional(),
 
   // Fallback
@@ -75,9 +75,9 @@ const ItineraryDaySchema = z.object({
 
 const ItinerarySchema = z.object({
   destination: z.string(),
-  duration: z.number(),
-  budget: z.number(),
-  interests: z.array(z.string()),
+  duration: z.union([z.number(), z.string()]),
+  budget: z.union([z.number(), z.string()]),
+  interests: z.union([z.array(z.string()), z.string()]),
   
   tripOverview: TripOverviewSchema.optional(),
   budgetBreakdown: BudgetSchema.optional(),
@@ -87,7 +87,7 @@ const ItinerarySchema = z.object({
   restaurants: z.array(RestaurantSchema).optional(),
   emergencyInfo: EmergencySchema.optional(),
 
-  totalCost: z.number().optional(),
+  totalCost: z.union([z.number(), z.string()]).optional(),
   notes: z.string().optional(),
   weatherForecast: z.any().optional(),
   packingChecklist: z.array(z.string()).optional(),
@@ -185,20 +185,30 @@ const generateTravelItineraryFlow = ai.defineFlow(
     const startTime = Date.now();
     try {
       sendChunk("Initializing travel planner...");
+
+      // Clean destination phrase into city name
+      const cleanDest = input.destination
+        .replace(/\b(plan|budget|friendly|trip|with|friends|family|honeymoon|vacation|tour|days?|luxury|best|me|a|an|the)\b/gi, '')
+        .trim() || input.destination;
+
       let weatherInfo = "";
       let coordinatesInfo = "";
       let offlineLink = "";
 
       if (input.plan === 'pro') {
-        sendChunk("Fetching premium weather and map data...");
-        const [weather, coords] = await Promise.all([
-          getWeatherForDestination(input.destination),
-          getCoordinates(input.destination),
+        sendChunk("Fetching live weather and maps data...");
+        const [weatherSettled, coordsSettled] = await Promise.allSettled([
+          getWeatherForDestination(cleanDest),
+          getCoordinates(cleanDest),
         ]);
-        if (weather) weatherInfo = JSON.stringify(weather);
-        if (coords) {
+
+        if (weatherSettled.status === 'fulfilled' && weatherSettled.value) {
+          weatherInfo = JSON.stringify(weatherSettled.value);
+        }
+        if (coordsSettled.status === 'fulfilled' && coordsSettled.value) {
+          const coords = coordsSettled.value;
           coordinatesInfo = JSON.stringify(coords);
-          const link = generateOfflineMapLink(input.destination, coords);
+          const link = generateOfflineMapLink(cleanDest, coords);
           if (link) offlineLink = link;
         }
       }
@@ -206,6 +216,7 @@ const generateTravelItineraryFlow = ai.defineFlow(
       sendChunk("Crafting personalized itinerary days & curating visuals...");
       const promptInput = {
         ...input,
+        destination: cleanDest,
         weatherInfo,
         coordinatesInfo,
         offlineLink,
@@ -214,7 +225,7 @@ const generateTravelItineraryFlow = ai.defineFlow(
       // Launch Gemini AI generation & Destination Images in parallel
       const [{ output }, images] = await Promise.all([
         prompt(promptInput),
-        getDestinationImages(input.destination).catch((err) => {
+        getDestinationImages(cleanDest).catch((err) => {
           console.warn("Image fetch fallback:", err);
           return { heroImage: "/bg_image2.png", popularPlaces: [], nearby: [] };
         })
@@ -222,6 +233,20 @@ const generateTravelItineraryFlow = ai.defineFlow(
 
       if (!output) {
         throw new Error('AI failed to generate itinerary.');
+      }
+
+      // Normalize fields if needed
+      output.destination = cleanDest;
+      if (typeof output.duration === 'string') {
+        const match = (output.duration as string).match(/\d+/);
+        output.duration = match ? parseInt(match[0], 10) : 5;
+      }
+      if (typeof output.budget === 'string') {
+        const num = parseInt((output.budget as string).replace(/[^\d]/g, ''), 10);
+        output.budget = isNaN(num) ? 50000 : num;
+      }
+      if (typeof output.interests === 'string') {
+        output.interests = (output.interests as string).split(',').map(s => s.trim()).filter(Boolean);
       }
 
       output.heroImage = images.heroImage;
@@ -241,6 +266,7 @@ const generateTravelItineraryFlow = ai.defineFlow(
     }
   }
 );
+
 
 export async function generateTravelItinerary(
   input: GenerateTravelItineraryInput
